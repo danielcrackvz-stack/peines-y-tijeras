@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Servicios — Peines y Tijeras</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <a href="index.html" class="logo"><em>Peines</em> &amp; Tijeras</a>
+    <nav>
+      <button class="nav-toggle" id="navToggle" aria-label="Abrir menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-links" id="navLinks">
+        <a href="index.html">Inicio</a>
+        <a href="catalogo.html" class="active">Servicios</a>
+        <a href="asistente-ia.html">Asistente IA</a>
+        <a href="reservas.html">Reservas</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <h1 style="font-size:clamp(2rem,4vw,2.8rem)">Nuestros servicios</h1>
+        <p>Todo lo que hacemos gira en torno al cabello: cortes, alizados, color y cambios de look.</p>
+      </div>
+    </div>
+
+    <div class="filters" id="filters">
+      <button class="filter-btn active" data-cat="Todos">Todos</button>
+      <button class="filter-btn" data-cat="Corte">Corte</button>
+      <button class="filter-btn" data-cat="Alizado">Alizado</button>
+      <button class="filter-btn" data-cat="Color">Color</button>
+      <button class="filter-btn" data-cat="Cambio de look">Cambio de look</button>
+    </div>
+
+    <div class="service-grid" id="serviceGrid">
+      <p class="state-msg">Cargando servicios…</p>
+    </div>
+  </div>
+</section>
+
+<a class="whatsapp-float" id="whatsappFloat" href="#" target="_blank" rel="noopener" aria-label="Reservar por WhatsApp">
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.39 1.26 4.81L2 22l5.42-1.36a9.9 9.9 0 0 0 4.62 1.15h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.1c-.24.68-1.4 1.3-1.93 1.36-.5.06-1.02.09-3.26-.68-2.74-.95-4.5-3.73-4.63-3.9-.13-.17-1.1-1.46-1.1-2.79 0-1.32.7-1.97.94-2.24.24-.27.52-.34.7-.34h.5c.17 0 .4-.02.6.47.24.57.8 1.97.87 2.11.07.14.12.3.02.48-.1.18-.14.29-.28.44-.14.16-.3.35-.42.47-.14.14-.29.29-.12.57.16.28.72 1.2 1.55 1.95 1.07.96 1.96 1.26 2.24 1.4.28.14.44.12.6-.07.16-.19.7-.82.89-1.1.19-.28.38-.23.63-.14.26.1 1.63.77 1.9.91.28.14.46.21.53.33.07.12.07.68-.17 1.36z"/></svg>
+</a>
+
+<footer class="site-footer">
+  <div class="container">
+    <div><strong>Peines &amp; Tijeras</strong><br>Salón de belleza capilar</div>
+    <div>Proyecto de Grado — Técnico Medio en Sistemas Informáticos<br>Bachillerato Técnico Humanístico "Núcleo Educativo Las Gamas"</div>
+  </div>
+</footer>
+
+<script type="module" src="js/firebase-config.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/catalogo.js"></script>
+</body>
+</html>

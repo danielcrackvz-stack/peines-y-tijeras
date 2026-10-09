@@ -1,0 +1,4 @@
+# Archivos de entorno y credenciales
+.env
+.env.local
+*.env
