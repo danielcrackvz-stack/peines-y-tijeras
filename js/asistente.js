@@ -111,31 +111,19 @@ document.querySelectorAll(".style-chip").forEach((s) => {
 // 5. Consulta al Agente Gemini
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Observa detenidamente la fotografía de la persona (forma de su rostro, facciones y tono de piel).
-La clienta desea realizarse el siguiente cambio de look: ${detalles}.
-Genera un diagnóstico en español en 4 líneas breves y profesionales:
-1. Indica si este corte/color armoniza con sus facciones y por qué.
-2. Da un consejo técnico de cuidado para cuando asista al salón.
-Sé amable, directa y sin introducciones extensas.`;
+Observa la fotografía (forma de rostro, facciones y tono de piel).
+La clienta desea realizarse: ${detalles}.
+Genera un diagnóstico en español en 4 líneas breves y profesionales indicando si armoniza con sus facciones, por qué, y qué recomendación técnica le das para cuando asista al salón.`;
 
-  const payload = {
-    contents: [{
-      parts: [
-        { text: prompt },
-        { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
-      ]
-    }]
-  };
-
-  const response = await fetch(ENDPOINT, {
+  const response = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ prompt, fotoBase64 })
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
+  if (!response.ok) throw new Error(data.error || `Error ${response.status}`);
+  return data.respuesta;
 }
 
 // 6. Botón Simular
