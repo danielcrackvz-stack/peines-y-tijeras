@@ -2,67 +2,57 @@
 // Configuración general del sitio — Peines y Tijeras
 // ==========================================================================
 
-// TODO: reemplaza con el número real de WhatsApp de la encargada de
-// recepción, en formato internacional sin "+" ni espacios.
-// Ejemplo Bolivia: 591 + número de celular -> "59170000000"
-export const WHATSAPP_NUMBER = "59162016968";
+export const WHATSAPP_NUMBER = "59164486558";
 
-// Catálogo de respaldo: se muestra si todavía no cargaste servicios en
-// Firestore, o si la conexión falla. Una vez que crees la colección
-// "servicios" en Firebase, el sitio usará esos datos en su lugar.
+// Configura la clave de Gemini en un backend; no la incluyas en el cliente.
+export const GEMINI_API_KEY = "";
+
+// Catálogo de respaldo: se muestra si Firebase aún no tiene datos cargados
 export const DEFAULT_SERVICIOS = [
   {
-    nombre: "Corte clásico",
+    nombre: "Corte clásico dama",
     categoria: "Corte",
     descripcion: "Corte a medida según la forma de tu rostro, incluye lavado y peinado final.",
-    precio: "Desde Bs. 60"
+    precio: "Bs. 35",
+    imagen: "https://images.unsplash.com/photo-1560869713-7d0a29430803?auto=format&fit=crop&w=600&q=80"
   },
   {
-    nombre: "Corte + diseño",
+    nombre: "Corte de varón / degradado",
     categoria: "Corte",
-    descripcion: "Corte con líneas y diseño personalizado, ideal para looks más definidos.",
-    precio: "Desde Bs. 80"
+    descripcion: "Corte moderno con degradado o clásico a tijera y máquina.",
+    precio: "Bs. 25",
+    imagen: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80"
   },
   {
     nombre: "Alizado permanente",
     categoria: "Alizado",
-    descripcion: "Tratamiento de alizado de larga duración para un cabello liso y manejable.",
-    precio: "Desde Bs. 250"
+    descripcion: "Tratamiento alisador intensivo para un cabello liso, suave y sin frizz.",
+    precio: "Bs. 220",
+    imagen: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=600&q=80"
   },
   {
-    nombre: "Alizado japonés",
-    categoria: "Alizado",
-    descripcion: "Alisado profundo hebra por hebra, resultado liso natural de larga duración.",
-    precio: "Desde Bs. 350"
-  },
-  {
-    nombre: "Color completo",
+    nombre: "Tinte completo",
     categoria: "Color",
-    descripcion: "Cambio de color de raíz a puntas, en el tono que elijas junto a tu estilista.",
-    precio: "Desde Bs. 180"
+    descripcion: "Aplicación de color uniforme de raíz a puntas con productos de alta fijación.",
+    precio: "Bs. 120",
+    imagen: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80"
   },
   {
     nombre: "Mechas / Balayage",
     categoria: "Color",
-    descripcion: "Técnica de mechas con efecto degradado natural, sin marcar raíz.",
-    precio: "Desde Bs. 220"
+    descripcion: "Técnica de iluminación degradada natural adaptada a tu tono base.",
+    precio: "Bs. 180",
+    imagen: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=600&q=80"
   },
   {
-    nombre: "Cambio de look completo",
+    nombre: "Cambio de look integral",
     categoria: "Cambio de look",
-    descripcion: "Asesoramiento integral: corte, color y peinado en una sola sesión.",
-    precio: "Desde Bs. 300"
+    descripcion: "Asesoramiento morfológico con IA, corte personalizado y colorimetría completa.",
+    precio: "Bs. 280",
+    imagen: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?auto=format&fit=crop&w=600&q=80"
   }
 ];
 
 export function buildWhatsappUrl(mensaje) {
-  const texto = encodeURIComponent(mensaje);
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${texto}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`;
 }
-// ==========================================================================
-// Gemini (Google AI Studio) — asistente de IA
-// Pega aquí tu clave de https://aistudio.google.com/apikey
-// IMPORTANTE: en Google Cloud Console > Credenciales, restringe esta clave
-// por "Referentes HTTP" a tu sitio (tu URL de GitHub Pages/Firebase y localhost)
-// ==========================================================================
-export const GEMINI_API_KEY = "PEGA_AQUI_TU_CLAVE";

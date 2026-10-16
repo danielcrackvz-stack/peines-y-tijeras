@@ -1,15 +1,14 @@
 // ==========================================================================
 // Conexión con Firebase — Peines y Tijeras
 // ==========================================================================
-// 1. Ve a la Consola de Firebase -> tu proyecto -> ícono de engranaje ->
-//    "Configuración del proyecto" -> pestaña "General".
-// 2. En "Tus apps", registra una app web (ícono </>) si todavía no lo hiciste.
-// 3. Copia el objeto "firebaseConfig" que te muestra Firebase y pégalo
-//    reemplazando los valores de ejemplo de abajo.
-// ==========================================================================
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAk3zlKHsX3TVHwP1VShKC19zDIyx67Qvg",
@@ -22,3 +21,4 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export { collection, addDoc, getDocs, serverTimestamp };
