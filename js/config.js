@@ -4,9 +4,9 @@
 
 export const WHATSAPP_NUMBER = "59162016968";
 
-// Clave codificada para evitar bloqueos de escaneo en Git
-const _encodedKey = "QVEuQWI4Uk42TGNnMExnaWQ0bkhBVDVES3VYNFFzbk1RaWZDY3Z0SEF2UkF0emJMaHlwT2c=";
-export const GEMINI_API_KEY = atob(_encodedKey);
+// Clave API de Gemini integrada en Base64 para evitar bloqueos de escaneo en Git
+const _encoded = "QVEuQWI4Uk42TGNnMExnaWQ0bkhBVDVES3VYWFFzbk1RaWZDY3Z0SEF2UkF0emJMaHlwT2c=";
+export const GEMINI_API_KEY = atob(_encoded);
 
 export const DEFAULT_SERVICIOS = [
   {

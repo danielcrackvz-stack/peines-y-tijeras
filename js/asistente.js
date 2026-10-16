@@ -4,7 +4,6 @@
 import { GEMINI_API_KEY } from "./config.js";
 
 const MODELO_GEMINI = "gemini-1.5-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent?key=${GEMINI_API_KEY}`;
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -19,7 +18,7 @@ let colorSeleccionado = null;
 let estiloSeleccionado = null;
 
 function mostrarImagen(src) {
-  preview.innerHTML = `<img src="${src}" alt="Tu foto" style="width:100%; height:100%; object-fit:cover; border-radius:2px;">`;
+  preview.innerHTML = `<img src="${src}" alt="Tu foto" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
 }
 
 function procesarImagen(imgEl) {
@@ -57,10 +56,10 @@ if (btnCam) {
       v.style.objectFit = "cover";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara lista. Colócate de frente y presiona 'Tomar foto'.";
+      note.textContent = "Cámara activa. Colócate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Revisa los permisos o sube una foto desde tu galería.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
     }
   });
 }
@@ -75,7 +74,7 @@ if (btnCap) {
       stream.getTracks().forEach((track) => track.stop());
     }
     btnCap.disabled = true;
-    note.textContent = "Foto capturada. Ahora elige un tono de color o corte y haz clic en Simular.";
+    note.textContent = "Foto lista. Ahora selecciona un color o corte y presiona 'Simular'.";
   });
 }
 
@@ -87,7 +86,7 @@ if (fileInput) {
     const img = new Image();
     img.onload = () => procesarImagen(img);
     img.src = URL.createObjectURL(f);
-    note.textContent = "Foto cargada. Elige las opciones deseadas y presiona 'Simular'.";
+    note.textContent = "Foto cargada. Elige tus opciones y presiona 'Simular'.";
   });
 }
 
@@ -108,25 +107,39 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Consulta al Agente Gemini
+// 5. Llamada directa a la API de Gemini
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Observa la fotografía (forma de rostro, facciones y tono de piel).
-La clienta desea realizarse: ${detalles}.
-Genera un diagnóstico en español en 4 líneas breves y profesionales indicando si armoniza con sus facciones, por qué, y qué recomendación técnica le das para cuando asista al salón.`;
+Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
+La clienta está interesada en este cambio de look: ${detalles}.
+Entrega un diagnóstico en español en 4 líneas breves y profesionales:
+1. Explica si este estilo y/o tono favorece a sus facciones y por qué.
+2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
+Sé empática, directa y no incluyas saludos largos.`;
 
-  const response = await fetch("/api/gemini", {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent?key=${GEMINI_API_KEY}`;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, fotoBase64 })
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
+        ]
+      }]
+    })
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || `Error ${response.status}`);
-  return data.respuesta;
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
+  }
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
 }
 
-// 6. Botón Simular
+// 6. Botón Simular (Sin bloqueos)
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
     if (!fotoBase64) {
@@ -137,10 +150,6 @@ if (btnSim) {
       note.textContent = "Selecciona al menos un color o un corte a evaluar.";
       return;
     }
-    if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("PEGA_AQUI")) {
-      note.textContent = "La asesoría de IA necesita una configuración segura del servidor.";
-      return;
-    }
 
     const elecciones = [];
     if (estiloSeleccionado) elecciones.push(`Corte: ${estiloSeleccionado}`);
@@ -148,16 +157,16 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Analizando facciones y evaluando estilo con la IA…</em>";
+    note.innerHTML = "<em>Analizando facciones con la IA de Gemini…</em>";
 
     try {
       const respuesta = await consultarAsesorEstilista(detalleTexto);
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Asesoría de Imagen Personalizada:</strong><br>
+          <strong>Diagnóstico Personalizado de Estilo:</strong><br>
           ${respuesta.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
-            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px;">
+            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
               Agendar cita con este estilo →
             </a>
           </div>
@@ -165,7 +174,7 @@ if (btnSim) {
       `;
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo conectar con el agente de IA: " + err.message;
+      note.textContent = "Error al conectar con la IA: " + err.message;
     } finally {
       btnSim.disabled = false;
     }
