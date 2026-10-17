@@ -1,4 +1,4 @@
-import { WHATSAPP_NUMBER, buildWhatsappUrl } from "js/config.js";
+import { WHATSAPP_NUMBER, buildWhatsappUrl } from "./config.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   // Menú móvil responsivo
