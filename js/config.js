@@ -4,9 +4,8 @@
 
 export const WHATSAPP_NUMBER = "59162016968";
 
-// Clave API de Gemini integrada en Base64 para evitar bloqueos de escaneo en Git
-const _encoded = "QVEuQWI4Uk42TGNnMExnaWQ0bkhBVDVES3VYWFFzbk1RaWZDY3Z0SEF2UkF0emJMaHlwT2c=";
-export const GEMINI_API_KEY = atob(_encoded);
+// Tu clave oficial de Google AI Studio
+export const GEMINI_API_KEY = "AQ.Ab8RN6Lcg0Lgid4nHAT5DKuX4QsnMQifCcvtHAvRAtzbLhypOg";
 
 export const DEFAULT_SERVICIOS = [
   {
