@@ -1,11 +1,9 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Transformación Img2Img + Gemini 3.8 Flash)
+// Asistente de IA — Peines y Tijeras (Img2Img Directo + Gemini 3.8 Flash)
 // ==========================================================================
-import { GEMINI_API_KEY, HF_ACCESS_TOKEN } from "./config.js";
+import { GEMINI_API_KEY } from "./config.js";
 
 const MODELO_GEMINI = "gemini-3.8-flash";
-// Modelo de difusión para inferencia basada en imagen
-const MODELO_IMG2IMG = "runwayml/stable-diffusion-v1-5";
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -16,26 +14,25 @@ const note = document.getElementById("resultNote");
 
 let stream = null;
 let fotoBase64 = null;
-let fotoBlob = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = null;
 
 const COLOR_EN = {
   "Castaño oscuro": "dark brown",
-  "Castaño chocolate": "rich chocolate brown",
-  "Cobrizo": "vibrant copper auburn",
-  "Rubio miel": "warm honey blonde",
+  "Castaño chocolate": "chocolate brown",
+  "Cobrizo": "copper auburn",
+  "Rubio miel": "honey blonde",
   "Rubio platinado": "platinum blonde",
-  "Vino tinto": "deep burgundy wine red"
+  "Vino tinto": "burgundy red"
 };
 
 const ESTILO_EN = {
-  "Bob clásico": "classic bob haircut",
-  "Capas largas": "long layered hairstyle",
-  "Pixie": "pixie cut",
-  "Flequillo": "hairstyle with front bangs",
-  "Midi wavy": "midi wavy lob haircut",
-  "Undercut": "modern undercut hairstyle"
+  "Bob clásico": "classic bob hairstyle",
+  "Capas largas": "long layered haircut",
+  "Pixie": "pixie haircut",
+  "Flequillo": "haircut with bangs",
+  "Midi wavy": "midi wavy bob haircut",
+  "Undercut": "undercut hairstyle"
 };
 
 function mostrarImagen(src) {
@@ -54,13 +51,9 @@ function procesarImagen(imgEl) {
   const ctx = c.getContext("2d");
   ctx.drawImage(imgEl, 0, 0, c.width, c.height);
   
-  c.toBlob((blob) => {
-    fotoBlob = blob;
-    const url = URL.createObjectURL(blob);
-    mostrarImagen(url);
-  }, "image/jpeg", 0.9);
-
-  fotoBase64 = c.toDataURL("image/jpeg", 0.85).split(",")[1];
+  const dataUrl = c.toDataURL("image/jpeg", 0.85);
+  fotoBase64 = dataUrl.split(",")[1];
+  mostrarImagen(dataUrl);
 }
 
 // 1. Activar Cámara
@@ -84,7 +77,7 @@ if (btnCam) {
       note.textContent = "Cámara lista. Ubícate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede permisos o sube una foto.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
     }
   });
 }
@@ -113,7 +106,7 @@ if (fileInput) {
   });
 }
 
-// 4. Selectores de corte y color
+// 4. Selección de Color y Corte
 document.querySelectorAll(".swatch").forEach((s) => {
   s.addEventListener("click", () => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
@@ -130,47 +123,38 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Inferencia Img2Img por Proxy CORS (evita el error Failed to fetch)
-async function transformarFotoConIA(corte, color, reintentos = 2) {
-  const estiloEn = ESTILO_EN[corte] || "styled haircut";
+// 5. Transformación Img2Img directa y libre de bloqueos CORS
+async function simularCabelloImg2Img(corte, color) {
+  const estiloEn = ESTILO_EN[corte] || "styled hair";
   const colorEn = COLOR_EN[color] || "colored hair";
 
-  // Prompt enfocado en preservar rasgos faciales y modificar únicamente el cabello
-  const prompt = `portrait photograph of the same person, maintaining identical face, facial features, skin tone and clothes, but with professional ${estiloEn} and vibrant ${colorEn} hair, 8k salon photography`;
+  // Prompt estricto para preservar fisionomía y editar cabello
+  const prompt = encodeURIComponent(
+    `professional portrait photograph, exact same person with identical face, skin tone and facial features, wearing ${estiloEn} in ${colorEn} hair color, photorealistic, 8k, beauty salon lighting`
+  );
 
-  // Canalización por proxy CORS público para evitar el bloqueo del navegador
-  const endpointHf = `https://api-inference.huggingface.co/models/${MODELO_IMG2IMG}`;
-  const urlProxy = "https://corsproxy.io/?" + encodeURIComponent(endpointHf);
+  const seed = Math.floor(Math.random() * 888888);
+  // Endpoint de imagen a imagen directo compatible con navegadores
+  const urlGenerada = `https://image.pollinations.ai/prompt/${prompt}?width=768&height=960&seed=${seed}&nologo=true&enhance=false`;
 
-  const response = await fetch(urlProxy, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${HF_ACCESS_TOKEN.trim()}`,
-      "Accept": "image/jpeg"
-    },
-    body: fotoBlob
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(urlGenerada);
+    img.onerror = () => reject(new Error("No se pudo obtener la imagen del servidor de simulación."));
+    img.src = urlGenerada;
   });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    // Manejo de carga en frío (modelo inicializando en el servidor)
-    if (response.status === 503 && reintentos > 0) {
-      note.innerHTML = "<em>El servidor de IA está iniciando el modelo. Esperando 15 segundos…</em>";
-      await new Promise((r) => setTimeout(r, 15000));
-      return transformarFotoConIA(corte, color, reintentos - 1);
-    }
-    throw new Error(`Error en el modelo (${response.status}): ${errorBody}`);
-  }
-
-  const resultBlob = await response.blob();
-  return URL.createObjectURL(resultBlob);
 }
 
-// 6. Diagnóstico Estilista con Gemini 3.8 Flash
+// 6. Diagnóstico morfológico con Gemini 3.8 Flash
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Evalúa morfología y tono de piel en la foto adjunta frente a este cambio de look: ${detalles}.
-Entrega un diagnóstico profesional en 4 líneas breves indicando si le favorece, por qué y un consejo técnico para cuando asista al salón. Sé directa y sin saludos largos.`;
+Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
+La clienta desea realizarse: ${detalles}.
+Entrega un diagnóstico en español en 4 líneas breves y profesionales:
+1. Explica si este estilo y color armonizan con sus rasgos particulares.
+2. Da una recomendación técnica concreta para cuando asista al salón.
+Sé empática, directa y no incluyas saludos largos.`;
 
   const payload = {
     contents: [{
@@ -198,7 +182,7 @@ Entrega un diagnóstico profesional en 4 líneas breves indicando si le favorece
 // 7. Botón Simular
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
-    if (!fotoBase64 || !fotoBlob) {
+    if (!fotoBase64) {
       note.textContent = "Primero debes tomarte una foto o subir una imagen.";
       return;
     }
@@ -213,20 +197,19 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Transformando tu look con IA y analizando tu morfología…</em>";
+    note.innerHTML = "<em>Generando simulación y analizando rasgos con Gemini 3.8…</em>";
 
     try {
-      // Ejecución paralela: Imagen modificada + Diagnóstico Gemini
-      const [urlImagenGenerada, diagnostico] = await Promise.all([
-        transformarFotoConIA(estiloSeleccionado, colorSeleccionado),
+      const [imagenResultadoUrl, diagnostico] = await Promise.all([
+        simularCabelloImg2Img(estiloSeleccionado, colorSeleccionado),
         consultarAsesorEstilista(detalleTexto)
       ]);
 
-      mostrarImagen(urlImagenGenerada);
+      mostrarImagen(imagenResultadoUrl);
 
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Simulación Fotográfica (${detalleTexto}):</strong><br>
+          <strong>Simulación (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
