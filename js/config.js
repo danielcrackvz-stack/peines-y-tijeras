@@ -1,11 +1,8 @@
-// ==========================================================================
-// Configuración general del sitio — Peines y Tijeras
-// ==========================================================================
-
 export const WHATSAPP_NUMBER = "59162016968";
-
-// Tu clave oficial de Google AI Studio
 export const GEMINI_API_KEY = "AQ.Ab8RN6Lcg0Lgid4nHAT5DKuX4QsnMQifCcvtHAvRAtzbLhypOg";
+
+// Token gratuito de Hugging Face (tipo Read)
+export const HF_ACCESS_TOKEN = "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";
 
 export const DEFAULT_SERVICIOS = [
   {

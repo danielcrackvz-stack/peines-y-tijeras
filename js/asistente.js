@@ -1,8 +1,9 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Generación de Imagen + Diagnóstico Gemini)
+// Asistente de IA — Peines y Tijeras (Hugging Face Img2Img + Gemini 3.8)
 // ==========================================================================
-import { GEMINI_API_KEY } from "./config.js";
+import { GEMINI_API_KEY, HF_ACCESS_TOKEN } from "./config.js";
 
+const MODELO_HF = "stabilityai/stable-diffusion-xl-refiner-1.0";
 const MODELO_GEMINI = "gemini-3.8-flash";
 
 const preview = document.getElementById("capturePreview");
@@ -13,32 +14,31 @@ const btnSim = document.getElementById("btnSimular");
 const note = document.getElementById("resultNote");
 
 let stream = null;
+let fotoBlob = null;
 let fotoBase64 = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = null;
 
-// Traducción de colores para el generador de imágenes en inglés (mayor precisión)
 const COLOR_EN = {
   "Castaño oscuro": "dark brown",
   "Castaño chocolate": "chocolate brown",
   "Cobrizo": "copper auburn",
   "Rubio miel": "honey blonde",
   "Rubio platinado": "platinum blonde",
-  "Vino tinto": "burgundy wine red"
+  "Vino tinto": "burgundy red"
 };
 
-// Traducción de estilos de corte
 const ESTILO_EN = {
-  "Bob clásico": "classic bob",
-  "Capas largas": "long layered",
+  "Bob clásico": "classic bob haircut",
+  "Capas largas": "long layered haircut",
   "Pixie": "pixie cut",
-  "Flequillo": "fringe bangs",
-  "Midi wavy": "midi wavy lob",
-  "Undercut": "modern undercut"
+  "Flequillo": "haircut with bangs",
+  "Midi wavy": "midi wavy haircut",
+  "Undercut": "undercut hairstyle"
 };
 
 function mostrarImagen(src) {
-  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Simulación generada" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
+  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Simulación" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
 }
 
 function procesarImagen(imgEl) {
@@ -53,9 +53,13 @@ function procesarImagen(imgEl) {
   const ctx = c.getContext("2d");
   ctx.drawImage(imgEl, 0, 0, c.width, c.height);
   
-  const url = c.toDataURL("image/jpeg", 0.85);
-  fotoBase64 = url.split(",")[1];
-  mostrarImagen(url);
+  c.toBlob((blob) => {
+    fotoBlob = blob;
+    const url = URL.createObjectURL(blob);
+    mostrarImagen(url);
+  }, "image/jpeg", 0.9);
+
+  fotoBase64 = c.toDataURL("image/jpeg", 0.85).split(",")[1];
 }
 
 // 1. Activar Cámara
@@ -79,7 +83,7 @@ if (btnCam) {
       note.textContent = "Cámara lista. Ubícate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
+      note.textContent = "No se pudo acceder a la cámara. Concede permisos o sube una foto.";
     }
   });
 }
@@ -90,11 +94,9 @@ if (btnCap) {
     const v = preview.querySelector("video");
     if (!v) return;
     procesarImagen(v);
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
+    if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Selecciona el corte y color deseados y presiona 'Simular'.";
+    note.textContent = "Foto lista. Selecciona un corte y color, luego presiona 'Simular'.";
   });
 }
 
@@ -110,7 +112,7 @@ if (fileInput) {
   });
 }
 
-// 4. Selección de Color y Corte
+// 4. Selectores
 document.querySelectorAll(".swatch").forEach((s) => {
   s.addEventListener("click", () => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
@@ -127,37 +129,43 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Generar Imagen Nueva con IA
-function generarNuevaImagen(corte, color) {
-  return new Promise((resolve, reject) => {
-    const estiloIngles = ESTILO_EN[corte] || "modern hairstyle";
-    const colorIngles = COLOR_EN[color] || "natural hair color";
+// 5. Inferencia Img2Img con Hugging Face (Preserva la base del rostro)
+async function transformarFotoHuggingFace(corte, color) {
+  const prompt = `photo of the same person, maintaining exact same face identity, eyes, nose, facial structure, skin tone and clothes, but with ${ESTILO_EN[corte] || "styled hair"} and ${COLOR_EN[color] || "dyed hair"}, photorealistic, 8k portrait, salon look`;
+  const negativePrompt = "distorted face, altered identity, different person, deformed eyes, bad anatomy, cartoon, blurry";
 
-    const prompt = encodeURIComponent(
-      `professional portrait photograph of a woman with a ${estiloIngles} haircut and ${colorIngles} hair, salon lighting, hyperrealistic, clean background, 8k photography`
-    );
-
-    // Semilla aleatoria para variar las generaciones
-    const seed = Math.floor(Math.random() * 999999);
-    const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=768&height=960&seed=${seed}&nologo=true`;
-
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(imageUrl);
-    img.onerror = () => reject(new Error("No se pudo cargar la imagen generada por IA."));
-    img.src = imageUrl;
+  const response = await fetch(`https://api-inference.huggingface.co/models/${MODELO_HF}`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${HF_ACCESS_TOKEN.trim()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      inputs: prompt,
+      parameters: {
+        negative_prompt: negativePrompt,
+        strength: 0.45 // Fuerza baja (0.4-0.5): mantiene el rostro original y solo edita el cabello
+      }
+    })
   });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    if (errData.error && errData.estimated_time) {
+      throw new Error(`El modelo de Hugging Face se está inicializando. Reintenta en ${Math.round(errData.estimated_time)} segundos.`);
+    }
+    throw new Error(errData.error || `Error HTTP ${response.status}`);
+  }
+
+  const resultBlob = await response.blob();
+  return URL.createObjectURL(resultBlob);
 }
 
-// 6. Diagnóstico con Gemini 3.8 Flash sobre la foto de la clienta
+// 6. Diagnóstico con Gemini 3.8 Flash
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
-La clienta desea realizarse: ${detalles}.
-Entrega un diagnóstico en español en 4 líneas breves y profesionales:
-1. Explica si este estilo y color armonizan con sus rasgos particulares.
-2. Da una recomendación técnica concreta para cuando asista al salón.
-Sé empática, directa y no incluyas saludos largos.`;
+Evalúa morfología y tono de piel en la foto adjunta frente a este cambio de look: ${detalles}.
+Entrega un diagnóstico profesional en 4 líneas breves indicando si le favorece, por qué y un consejo técnico para cuando asista al salón. Sin saludos largos.`;
 
   const payload = {
     contents: [{
@@ -168,29 +176,24 @@ Sé empática, directa y no incluyas saludos largos.`;
     }]
   };
 
-  const headers = {
-    "Content-Type": "application/json",
-    "x-goog-api-key": GEMINI_API_KEY.trim()
-  };
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent`;
-  const response = await fetch(url, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent`, {
     method: "POST",
-    headers: headers,
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY.trim()
+    },
     body: JSON.stringify(payload)
   });
 
   const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
-  }
+  if (!response.ok) throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
 }
 
 // 7. Botón Simular
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
-    if (!fotoBase64) {
+    if (!fotoBase64 || !fotoBlob) {
       note.textContent = "Primero debes tomarte una foto o subir una imagen.";
       return;
     }
@@ -205,21 +208,19 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Generando fotografía del look con IA y analizando tu foto…</em>";
+    note.innerHTML = "<em>Transformando cabello con Hugging Face manteniendo tus facciones…</em>";
 
     try {
-      // Ejecutar la generación visual y el análisis en paralelo
-      const [imagenGeneradaUrl, diagnostico] = await Promise.all([
-        generarNuevaImagen(estiloSeleccionado, colorSeleccionado),
+      const [urlEditada, diagnostico] = await Promise.all([
+        transformarFotoHuggingFace(estiloSeleccionado, colorSeleccionado),
         consultarAsesorEstilista(detalleTexto)
       ]);
 
-      // Reemplazar el contenedor con la imagen generada por IA
-      mostrarImagen(imagenGeneradaUrl);
+      mostrarImagen(urlEditada);
 
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Look Generado por IA (${detalleTexto}):</strong><br>
+          <strong>Simulación Img2Img (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
@@ -230,7 +231,7 @@ if (btnSim) {
       `;
     } catch (err) {
       console.error(err);
-      note.textContent = "Error durante la simulación: " + err.message;
+      note.textContent = "Error en la simulación: " + err.message;
     } finally {
       btnSim.disabled = false;
     }
