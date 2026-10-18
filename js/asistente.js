@@ -3,7 +3,6 @@
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-const MODELO_IMAGEN = "gemini-nano-banana-2.1";
 const MODELO_TEXTO = "gemini-3.8-flash";
 
 const preview = document.getElementById("capturePreview");
