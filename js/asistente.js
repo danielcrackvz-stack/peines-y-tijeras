@@ -105,7 +105,7 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Detección automática del modelo activo y consulta
+// 5. Consulta al Asesor Estilista con los modelos activos de tu cuenta
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
 Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
@@ -115,30 +115,6 @@ Entrega un diagnóstico en español en 4 líneas breves y profesionales:
 2. Da una recomendación técnica concreta para cuando asista a aplicárselo al salón.
 Sé empática, directa y no incluyas saludos largos.`;
 
-  const headers = {
-    "Content-Type": "application/json",
-    "x-goog-api-key": GEMINI_API_KEY.trim()
-  };
-
-  // 1. Obtener los modelos disponibles para tu clave
-  let modeloElegido = "gemini-2.0-flash";
-  try {
-    const listRes = await fetch("https://generativelanguage.googleapis.com/v1beta/models", { headers });
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      const compatible = listData.models?.find(m => 
-        m.supportedGenerationMethods?.includes("generateContent") && 
-        (m.name.includes("flash") || m.name.includes("pro"))
-      );
-      if (compatible) {
-        modeloElegido = compatible.name.replace("models/", "");
-      }
-    }
-  } catch (e) {
-    console.warn("No se pudo listar modelos, usando predeterminado:", e);
-  }
-
-  // 2. Ejecutar la llamada con el modelo detectado
   const payload = {
     contents: [{
       parts: [
@@ -148,11 +124,28 @@ Sé empática, directa y no incluyas saludos largos.`;
     }]
   };
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modeloElegido}:generateContent`, {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": GEMINI_API_KEY.trim()
+  };
+
+  // 1. Intentamos con gemini-3.8-flash (el modelo que te pide Google AI Studio)
+  let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+  let response = await fetch(url, {
     method: "POST",
     headers: headers,
     body: JSON.stringify(payload)
   });
+
+  // 2. Si falla, respaldo con gemini-3.5-flash-lite
+  if (!response.ok) {
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+    response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+  }
 
   const data = await response.json();
   if (!response.ok) {
