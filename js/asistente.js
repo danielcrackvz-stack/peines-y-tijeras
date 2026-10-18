@@ -1,9 +1,9 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Gemini 3.8 Flash + Simulación Visual)
+// Asistente de IA — Peines y Tijeras (Generación de Imagen + Diagnóstico Gemini)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-const MODELO_ACTIVO = "gemini-3.8-flash";
+const MODELO_GEMINI = "gemini-3.8-flash";
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -14,23 +14,31 @@ const note = document.getElementById("resultNote");
 
 let stream = null;
 let fotoBase64 = null;
-let fotoOriginalSrc = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = null;
-let hexColorSeleccionado = null;
 
-// Mapa de tonos para la transformación de color en el cabello
-const MAPA_COLORES = {
-  "Castaño oscuro": "#2B1B12",
-  "Castaño chocolate": "#6B3A1F",
-  "Cobrizo": "#A85C2B",
-  "Rubio miel": "#C79A56",
-  "Rubio platinado": "#E8D3A0",
-  "Vino tinto": "#5C2A3B"
+// Traducción de colores para el generador de imágenes en inglés (mayor precisión)
+const COLOR_EN = {
+  "Castaño oscuro": "dark brown",
+  "Castaño chocolate": "chocolate brown",
+  "Cobrizo": "copper auburn",
+  "Rubio miel": "honey blonde",
+  "Rubio platinado": "platinum blonde",
+  "Vino tinto": "burgundy wine red"
+};
+
+// Traducción de estilos de corte
+const ESTILO_EN = {
+  "Bob clásico": "classic bob",
+  "Capas largas": "long layered",
+  "Pixie": "pixie cut",
+  "Flequillo": "fringe bangs",
+  "Midi wavy": "midi wavy lob",
+  "Undercut": "modern undercut"
 };
 
 function mostrarImagen(src) {
-  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Foto" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
+  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Simulación generada" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
 }
 
 function procesarImagen(imgEl) {
@@ -45,9 +53,9 @@ function procesarImagen(imgEl) {
   const ctx = c.getContext("2d");
   ctx.drawImage(imgEl, 0, 0, c.width, c.height);
   
-  fotoOriginalSrc = c.toDataURL("image/jpeg", 0.9);
-  fotoBase64 = fotoOriginalSrc.split(",")[1];
-  mostrarImagen(fotoOriginalSrc);
+  const url = c.toDataURL("image/jpeg", 0.85);
+  fotoBase64 = url.split(",")[1];
+  mostrarImagen(url);
 }
 
 // 1. Activar Cámara
@@ -71,7 +79,7 @@ if (btnCam) {
       note.textContent = "Cámara lista. Ubícate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
     }
   });
 }
@@ -86,7 +94,7 @@ if (btnCap) {
       stream.getTracks().forEach((track) => track.stop());
     }
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Selecciona un color o estilo de corte y haz clic en Simular.";
+    note.textContent = "Foto lista. Selecciona el corte y color deseados y presiona 'Simular'.";
   });
 }
 
@@ -108,7 +116,6 @@ document.querySelectorAll(".swatch").forEach((s) => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     colorSeleccionado = s.dataset.color || s.getAttribute("title");
-    hexColorSeleccionado = MAPA_COLORES[colorSeleccionado] || s.style.backgroundColor;
   });
 });
 
@@ -120,54 +127,36 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// Función para aplicar simulación visual sobre la fotografía
-function aplicarFiltroCabello(colorHex, estiloNombre) {
-  if (!fotoOriginalSrc) return;
-  const imgBase = new Image();
-  imgBase.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = imgBase.width;
-    canvas.height = imgBase.height;
-    const ctx = canvas.getContext("2d");
+// 5. Generar Imagen Nueva con IA
+function generarNuevaImagen(corte, color) {
+  return new Promise((resolve, reject) => {
+    const estiloIngles = ESTILO_EN[corte] || "modern hairstyle";
+    const colorIngles = COLOR_EN[color] || "natural hair color";
 
-    // Dibujar la imagen base
-    ctx.drawImage(imgBase, 0, 0);
+    const prompt = encodeURIComponent(
+      `professional portrait photograph of a woman with a ${estiloIngles} haircut and ${colorIngles} hair, salon lighting, hyperrealistic, clean background, 8k photography`
+    );
 
-    // Si eligió color, aplicar capa cromática en la parte superior del cabello
-    if (colorHex) {
-      ctx.save();
-      ctx.globalCompositeOperation = "color";
-      ctx.fillStyle = colorHex;
-      ctx.globalAlpha = 0.55;
-      ctx.beginPath();
-      ctx.ellipse(canvas.width * 0.5, canvas.height * 0.35, canvas.width * 0.44, canvas.height * 0.35, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    // Semilla aleatoria para variar las generaciones
+    const seed = Math.floor(Math.random() * 999999);
+    const imageUrl = `https://image.pollinations.ai/prompt/${prompt}?width=768&height=960&seed=${seed}&nologo=true`;
 
-    // Pie de foto con el estilo simulado
-    ctx.save();
-    ctx.fillStyle = "rgba(31, 22, 18, 0.85)";
-    ctx.fillRect(0, canvas.height - 44, canvas.width, 44);
-    ctx.fillStyle = "#FAF6F0";
-    ctx.font = "bold 14px sans-serif";
-    const texto = `Look simulado: ${estiloNombre || "Corte base"} ${colorHex ? "• Tono " + colorSeleccionado : ""}`;
-    ctx.fillText(texto, 16, canvas.height - 18);
-    ctx.restore();
-
-    mostrarImagen(canvas.toDataURL("image/jpeg", 0.9));
-  };
-  imgBase.src = fotoOriginalSrc;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(imageUrl);
+    img.onerror = () => reject(new Error("No se pudo cargar la imagen generada por IA."));
+    img.src = imageUrl;
+  });
 }
 
-// 5. Petición a Gemini 3.8 Flash (Diagnóstico Estilista)
+// 6. Diagnóstico con Gemini 3.8 Flash sobre la foto de la clienta
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
 Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
-La clienta está interesada en este cambio de look: ${detalles}.
+La clienta desea realizarse: ${detalles}.
 Entrega un diagnóstico en español en 4 líneas breves y profesionales:
-1. Explica si este estilo y tono favorecen a sus facciones y por qué.
-2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
+1. Explica si este estilo y color armonizan con sus rasgos particulares.
+2. Da una recomendación técnica concreta para cuando asista al salón.
 Sé empática, directa y no incluyas saludos largos.`;
 
   const payload = {
@@ -184,7 +173,7 @@ Sé empática, directa y no incluyas saludos largos.`;
     "x-goog-api-key": GEMINI_API_KEY.trim()
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_ACTIVO}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent`;
   const response = await fetch(url, {
     method: "POST",
     headers: headers,
@@ -198,7 +187,7 @@ Sé empática, directa y no incluyas saludos largos.`;
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
 }
 
-// 6. Botón Simular
+// 7. Botón Simular
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
     if (!fotoBase64) {
@@ -215,18 +204,23 @@ if (btnSim) {
     if (colorSeleccionado) elecciones.push(`Color: ${colorSeleccionado}`);
     const detalleTexto = elecciones.join(" y ");
 
-    // Aplicar transformación visual directa
-    aplicarFiltroCabello(hexColorSeleccionado, estiloSeleccionado);
-
     btnSim.disabled = true;
-    note.innerHTML = "<em>Analizando rasgos con Gemini 3.8 Flash…</em>";
+    note.innerHTML = "<em>Generando fotografía del look con IA y analizando tu foto…</em>";
 
     try {
-      const respuesta = await consultarAsesorEstilista(detalleTexto);
+      // Ejecutar la generación visual y el análisis en paralelo
+      const [imagenGeneradaUrl, diagnostico] = await Promise.all([
+        generarNuevaImagen(estiloSeleccionado, colorSeleccionado),
+        consultarAsesorEstilista(detalleTexto)
+      ]);
+
+      // Reemplazar el contenedor con la imagen generada por IA
+      mostrarImagen(imagenGeneradaUrl);
+
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Diagnóstico Personalizado de Estilo:</strong><br>
-          ${respuesta.replace(/\n/g, "<br>")}
+          <strong>Look Generado por IA (${detalleTexto}):</strong><br>
+          ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
               Agendar cita con este estilo →
@@ -236,7 +230,7 @@ if (btnSim) {
       `;
     } catch (err) {
       console.error(err);
-      note.textContent = "Error al conectar con la IA: " + err.message;
+      note.textContent = "Error durante la simulación: " + err.message;
     } finally {
       btnSim.disabled = false;
     }
