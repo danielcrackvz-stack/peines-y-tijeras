@@ -1,9 +1,9 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Edición Fotográfica Nano Banana 2.1)
+// Asistente de IA — Peines y Tijeras (Gemini 3.8 Flash + Simulación Visual)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-const MODELO_TEXTO = "gemini-3.8-flash";
+const MODELO_ACTIVO = "gemini-3.8-flash";
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -14,11 +14,23 @@ const note = document.getElementById("resultNote");
 
 let stream = null;
 let fotoBase64 = null;
+let fotoOriginalSrc = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = null;
+let hexColorSeleccionado = null;
+
+// Mapa de tonos para la transformación de color en el cabello
+const MAPA_COLORES = {
+  "Castaño oscuro": "#2B1B12",
+  "Castaño chocolate": "#6B3A1F",
+  "Cobrizo": "#A85C2B",
+  "Rubio miel": "#C79A56",
+  "Rubio platinado": "#E8D3A0",
+  "Vino tinto": "#5C2A3B"
+};
 
 function mostrarImagen(src) {
-  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Simulación" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
+  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Foto" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
 }
 
 function procesarImagen(imgEl) {
@@ -33,9 +45,9 @@ function procesarImagen(imgEl) {
   const ctx = c.getContext("2d");
   ctx.drawImage(imgEl, 0, 0, c.width, c.height);
   
-  const url = c.toDataURL("image/jpeg", 0.85);
-  fotoBase64 = url.split(",")[1];
-  mostrarImagen(url);
+  fotoOriginalSrc = c.toDataURL("image/jpeg", 0.9);
+  fotoBase64 = fotoOriginalSrc.split(",")[1];
+  mostrarImagen(fotoOriginalSrc);
 }
 
 // 1. Activar Cámara
@@ -56,10 +68,10 @@ if (btnCam) {
       v.style.objectFit = "cover";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara lista. Colócate de frente y presiona 'Tomar foto'.";
+      note.textContent = "Cámara lista. Ubícate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto.";
     }
   });
 }
@@ -74,7 +86,7 @@ if (btnCap) {
       stream.getTracks().forEach((track) => track.stop());
     }
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Ahora selecciona un estilo o color y presiona 'Simular'.";
+    note.textContent = "Foto lista. Selecciona un color o estilo de corte y haz clic en Simular.";
   });
 }
 
@@ -96,6 +108,7 @@ document.querySelectorAll(".swatch").forEach((s) => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     colorSeleccionado = s.dataset.color || s.getAttribute("title");
+    hexColorSeleccionado = MAPA_COLORES[colorSeleccionado] || s.style.backgroundColor;
   });
 });
 
@@ -107,16 +120,55 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Petición de edición visual a Nano Banana 2.1
-async function generarEdicionImagen(instrucciones) {
-  const prompt = `Realistic photograph edit: Modify the hair of the person in this image. ` +
-                 `Apply hairstyle "${estiloSeleccionado || 'same cut'}" and hair color "${colorSeleccionado || 'same color'}". ` +
-                 `Keep the exact same face, skin tone, facial features, clothing, and background completely unchanged. High resolution, salon finish.`;
+// Función para aplicar simulación visual sobre la fotografía
+function aplicarFiltroCabello(colorHex, estiloNombre) {
+  if (!fotoOriginalSrc) return;
+  const imgBase = new Image();
+  imgBase.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = imgBase.width;
+    canvas.height = imgBase.height;
+    const ctx = canvas.getContext("2d");
 
-  const headers = {
-    "Content-Type": "application/json",
-    "x-goog-api-key": GEMINI_API_KEY.trim()
+    // Dibujar la imagen base
+    ctx.drawImage(imgBase, 0, 0);
+
+    // Si eligió color, aplicar capa cromática en la parte superior del cabello
+    if (colorHex) {
+      ctx.save();
+      ctx.globalCompositeOperation = "color";
+      ctx.fillStyle = colorHex;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.ellipse(canvas.width * 0.5, canvas.height * 0.35, canvas.width * 0.44, canvas.height * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Pie de foto con el estilo simulado
+    ctx.save();
+    ctx.fillStyle = "rgba(31, 22, 18, 0.85)";
+    ctx.fillRect(0, canvas.height - 44, canvas.width, 44);
+    ctx.fillStyle = "#FAF6F0";
+    ctx.font = "bold 14px sans-serif";
+    const texto = `Look simulado: ${estiloNombre || "Corte base"} ${colorHex ? "• Tono " + colorSeleccionado : ""}`;
+    ctx.fillText(texto, 16, canvas.height - 18);
+    ctx.restore();
+
+    mostrarImagen(canvas.toDataURL("image/jpeg", 0.9));
   };
+  imgBase.src = fotoOriginalSrc;
+}
+
+// 5. Petición a Gemini 3.8 Flash (Diagnóstico Estilista)
+async function consultarAsesorEstilista(detalles) {
+  const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
+Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
+La clienta está interesada en este cambio de look: ${detalles}.
+Entrega un diagnóstico en español en 4 líneas breves y profesionales:
+1. Explica si este estilo y tono favorecen a sus facciones y por qué.
+2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
+Sé empática, directa y no incluyas saludos largos.`;
 
   const payload = {
     contents: [{
@@ -127,7 +179,12 @@ async function generarEdicionImagen(instrucciones) {
     }]
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_IMAGEN}:generateContent`;
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": GEMINI_API_KEY.trim()
+  };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_ACTIVO}:generateContent`;
   const response = await fetch(url, {
     method: "POST",
     headers: headers,
@@ -138,22 +195,7 @@ async function generarEdicionImagen(instrucciones) {
   if (!response.ok) {
     throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
   }
-
-  // Buscar imagen binaria inline devuelta por el modelo
-  const parts = data?.candidates?.[0]?.content?.parts || [];
-  const imgPart = parts.find((p) => p.inlineData || p.inline_data);
-  if (imgPart) {
-    const d = imgPart.inlineData || imgPart.inline_data;
-    return `data:${d.mimeType || d.mime_type || "image/png"};base64,${d.data}`;
-  }
-
-  // Si devuelve texto descriptivo en lugar de imagen directa
-  const txtPart = parts.find((p) => p.text);
-  if (txtPart) {
-    return { soloTexto: txtPart.text };
-  }
-
-  throw new Error("El modelo no devolvió una imagen procesada.");
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
 }
 
 // 6. Botón Simular
@@ -173,35 +215,28 @@ if (btnSim) {
     if (colorSeleccionado) elecciones.push(`Color: ${colorSeleccionado}`);
     const detalleTexto = elecciones.join(" y ");
 
+    // Aplicar transformación visual directa
+    aplicarFiltroCabello(hexColorSeleccionado, estiloSeleccionado);
+
     btnSim.disabled = true;
-    note.innerHTML = "<em>Generando edición fotográfica con Nano Banana 2.1... (puede tomar unos segundos)</em>";
+    note.innerHTML = "<em>Analizando rasgos con Gemini 3.8 Flash…</em>";
 
     try {
-      const resultado = await generarEdicionImagen(detalleTexto);
-      
-      if (typeof resultado === "string") {
-        mostrarImagen(resultado);
-        note.innerHTML = `
-          <strong>¡Simulación lista!</strong> Se aplicó ${detalleTexto}.<br>
-          <div style="margin-top:12px;">
+      const respuesta = await consultarAsesorEstilista(detalleTexto);
+      note.innerHTML = `
+        <div style="line-height:1.6;">
+          <strong>Diagnóstico Personalizado de Estilo:</strong><br>
+          ${respuesta.replace(/\n/g, "<br>")}
+          <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
-              Agendar este estilo en el salón →
+              Agendar cita con este estilo →
             </a>
           </div>
-        `;
-      } else {
-        note.innerHTML = `
-          <strong>Diagnóstico:</strong> ${resultado.soloTexto}<br>
-          <div style="margin-top:12px;">
-            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
-              Agendar este estilo en el salón →
-            </a>
-          </div>
-        `;
-      }
+        </div>
+      `;
     } catch (err) {
       console.error(err);
-      note.textContent = "Error al editar imagen: " + err.message;
+      note.textContent = "Error al conectar con la IA: " + err.message;
     } finally {
       btnSim.disabled = false;
     }
