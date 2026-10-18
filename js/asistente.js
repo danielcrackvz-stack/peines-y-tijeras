@@ -3,8 +3,6 @@
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-const MODELO_GEMINI = "gemini-1.5-flash";
-
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
 const btnCap = document.getElementById("btnCapture");
@@ -56,7 +54,7 @@ if (btnCam) {
       v.style.objectFit = "cover";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara activa. Colócate de frente y presiona 'Tomar foto'.";
+      note.textContent = "Cámara lista. Colócate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
       note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
@@ -107,30 +105,47 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Llamada directa a la API de Gemini
+// 5. Petición a Gemini con modelo actualizado
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
 Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
 La clienta está interesada en este cambio de look: ${detalles}.
 Entrega un diagnóstico en español en 4 líneas breves y profesionales:
 1. Explica si este estilo y/o tono favorece a sus facciones y por qué.
-2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
+2. Da una recomendación técnica concreta para cuando asista a aplicárselo al salón.
 Sé empática, directa y no incluyas saludos largos.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent?key=${GEMINI_API_KEY}`;
+  const payload = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
+      ]
+    }]
+  };
 
-  const response = await fetch(url, {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": GEMINI_API_KEY.trim()
+  };
+
+  // Intentamos con gemini-2.0-flash en v1beta
+  let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  let response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
-        ]
-      }]
-    })
+    headers: headers,
+    body: JSON.stringify(payload)
   });
+
+  // Si no está disponible, probamos la versión estable v1
+  if (!response.ok) {
+    url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent";
+    response = await fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+  }
 
   const data = await response.json();
   if (!response.ok) {
@@ -139,7 +154,7 @@ Sé empática, directa y no incluyas saludos largos.`;
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
 }
 
-// 6. Botón Simular (Sin bloqueos)
+// 6. Botón Simular
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
     if (!fotoBase64) {
