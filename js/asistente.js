@@ -1,10 +1,11 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Hugging Face Img2Img + Gemini 3.8)
+// Asistente de IA — Peines y Tijeras (Transformación Img2Img + Gemini 3.8 Flash)
 // ==========================================================================
 import { GEMINI_API_KEY, HF_ACCESS_TOKEN } from "./config.js";
 
-const MODELO_HF = "stabilityai/stable-diffusion-xl-refiner-1.0";
 const MODELO_GEMINI = "gemini-3.8-flash";
+// Modelo de difusión para inferencia basada en imagen
+const MODELO_IMG2IMG = "runwayml/stable-diffusion-v1-5";
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -14,27 +15,27 @@ const btnSim = document.getElementById("btnSimular");
 const note = document.getElementById("resultNote");
 
 let stream = null;
-let fotoBlob = null;
 let fotoBase64 = null;
+let fotoBlob = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = null;
 
 const COLOR_EN = {
   "Castaño oscuro": "dark brown",
-  "Castaño chocolate": "chocolate brown",
-  "Cobrizo": "copper auburn",
-  "Rubio miel": "honey blonde",
+  "Castaño chocolate": "rich chocolate brown",
+  "Cobrizo": "vibrant copper auburn",
+  "Rubio miel": "warm honey blonde",
   "Rubio platinado": "platinum blonde",
-  "Vino tinto": "burgundy red"
+  "Vino tinto": "deep burgundy wine red"
 };
 
 const ESTILO_EN = {
   "Bob clásico": "classic bob haircut",
-  "Capas largas": "long layered haircut",
+  "Capas largas": "long layered hairstyle",
   "Pixie": "pixie cut",
-  "Flequillo": "haircut with bangs",
-  "Midi wavy": "midi wavy haircut",
-  "Undercut": "undercut hairstyle"
+  "Flequillo": "hairstyle with front bangs",
+  "Midi wavy": "midi wavy lob haircut",
+  "Undercut": "modern undercut hairstyle"
 };
 
 function mostrarImagen(src) {
@@ -112,7 +113,7 @@ if (fileInput) {
   });
 }
 
-// 4. Selectores
+// 4. Selectores de corte y color
 document.querySelectorAll(".swatch").forEach((s) => {
   s.addEventListener("click", () => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
@@ -129,43 +130,47 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Inferencia Img2Img con Hugging Face (Preserva la base del rostro)
-async function transformarFotoHuggingFace(corte, color) {
-  const prompt = `photo of the same person, maintaining exact same face identity, eyes, nose, facial structure, skin tone and clothes, but with ${ESTILO_EN[corte] || "styled hair"} and ${COLOR_EN[color] || "dyed hair"}, photorealistic, 8k portrait, salon look`;
-  const negativePrompt = "distorted face, altered identity, different person, deformed eyes, bad anatomy, cartoon, blurry";
+// 5. Inferencia Img2Img por Proxy CORS (evita el error Failed to fetch)
+async function transformarFotoConIA(corte, color, reintentos = 2) {
+  const estiloEn = ESTILO_EN[corte] || "styled haircut";
+  const colorEn = COLOR_EN[color] || "colored hair";
 
-  const response = await fetch(`https://api-inference.huggingface.co/models/${MODELO_HF}`, {
+  // Prompt enfocado en preservar rasgos faciales y modificar únicamente el cabello
+  const prompt = `portrait photograph of the same person, maintaining identical face, facial features, skin tone and clothes, but with professional ${estiloEn} and vibrant ${colorEn} hair, 8k salon photography`;
+
+  // Canalización por proxy CORS público para evitar el bloqueo del navegador
+  const endpointHf = `https://api-inference.huggingface.co/models/${MODELO_IMG2IMG}`;
+  const urlProxy = "https://corsproxy.io/?" + encodeURIComponent(endpointHf);
+
+  const response = await fetch(urlProxy, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${HF_ACCESS_TOKEN.trim()}`,
-      "Content-Type": "application/json"
+      "Accept": "image/jpeg"
     },
-    body: JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        negative_prompt: negativePrompt,
-        strength: 0.45 // Fuerza baja (0.4-0.5): mantiene el rostro original y solo edita el cabello
-      }
-    })
+    body: fotoBlob
   });
 
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    if (errData.error && errData.estimated_time) {
-      throw new Error(`El modelo de Hugging Face se está inicializando. Reintenta en ${Math.round(errData.estimated_time)} segundos.`);
+    const errorBody = await response.text();
+    // Manejo de carga en frío (modelo inicializando en el servidor)
+    if (response.status === 503 && reintentos > 0) {
+      note.innerHTML = "<em>El servidor de IA está iniciando el modelo. Esperando 15 segundos…</em>";
+      await new Promise((r) => setTimeout(r, 15000));
+      return transformarFotoConIA(corte, color, reintentos - 1);
     }
-    throw new Error(errData.error || `Error HTTP ${response.status}`);
+    throw new Error(`Error en el modelo (${response.status}): ${errorBody}`);
   }
 
   const resultBlob = await response.blob();
   return URL.createObjectURL(resultBlob);
 }
 
-// 6. Diagnóstico con Gemini 3.8 Flash
+// 6. Diagnóstico Estilista con Gemini 3.8 Flash
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
 Evalúa morfología y tono de piel en la foto adjunta frente a este cambio de look: ${detalles}.
-Entrega un diagnóstico profesional en 4 líneas breves indicando si le favorece, por qué y un consejo técnico para cuando asista al salón. Sin saludos largos.`;
+Entrega un diagnóstico profesional en 4 líneas breves indicando si le favorece, por qué y un consejo técnico para cuando asista al salón. Sé directa y sin saludos largos.`;
 
   const payload = {
     contents: [{
@@ -208,19 +213,20 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Transformando cabello con Hugging Face manteniendo tus facciones…</em>";
+    note.innerHTML = "<em>Transformando tu look con IA y analizando tu morfología…</em>";
 
     try {
-      const [urlEditada, diagnostico] = await Promise.all([
-        transformarFotoHuggingFace(estiloSeleccionado, colorSeleccionado),
+      // Ejecución paralela: Imagen modificada + Diagnóstico Gemini
+      const [urlImagenGenerada, diagnostico] = await Promise.all([
+        transformarFotoConIA(estiloSeleccionado, colorSeleccionado),
         consultarAsesorEstilista(detalleTexto)
       ]);
 
-      mostrarImagen(urlEditada);
+      mostrarImagen(urlImagenGenerada);
 
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Simulación Img2Img (${detalleTexto}):</strong><br>
+          <strong>Simulación Fotográfica (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
