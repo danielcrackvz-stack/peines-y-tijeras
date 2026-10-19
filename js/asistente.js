@@ -1,5 +1,7 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Ajuste Libre Calibrado + Gemini Pro)
+// Asistente de IA — Peines y Tijeras
+// Módulo: Asesor de Visagismo y Diagnóstico Morfológico Capilar con IA
+// Motor: Gemini 3.1 Pro Preview (con tolerancia a fallos)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
@@ -22,77 +24,16 @@ let fotoOriginalSrc = null;
 let estiloSeleccionado = "Undercut";
 let colorSeleccionado = "Cobrizo";
 
-// Rutas locales a los archivos PNG transparentes
-const PELUCAS_LOCALES = {
-  "Bob clásico": "./assets/cortes/bob_clasico.png",
-  "Capas largas": "./assets/cortes/capas_largas.png",
-  "Pixie": "./assets/cortes/pixie.png",
-  "Flequillo": "./assets/cortes/flequillo.png",
-  "Midi wavy": "./assets/cortes/midi_wavy.png",
-  "Undercut": "./assets/cortes/undercut.png"
-};
-
-// Valores iniciales calibrados para calzar naturalmente sobre la cabeza
-let wigTop = -12;     // Altura (%)
-let wigLeft = 50;     // Centrado horizontal (%)
-let wigScale = 180;   // Tamaño inicial amplio (%)
-
-function renderizarVistaInteractiva() {
-  if (!fotoOriginalSrc) return;
-
-  const rutaPeluca = PELUCAS_LOCALES[estiloSeleccionado] || PELUCAS_LOCALES["Undercut"];
-
-  // Limpiar estilos forzados del contenedor exterior para evitar franjas negras
+function mostrarImagen(src) {
   if (preview) {
     preview.style.background = "transparent";
     preview.style.height = "auto";
-    preview.style.overflow = "visible";
   }
-
   preview.innerHTML = `
-    <!-- Contenedor de la foto y peluca -->
-    <div id="canvasWrapper" style="position:relative; width:100%; border-radius:8px; overflow:hidden; background:transparent; line-height:0;">
-      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:auto; display:block; margin:0 auto; object-fit:contain;">
-      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:${wigLeft}%; top:${wigTop}%; width:${wigScale}%; transform:translate(-50%, 0); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
-    </div>
-
-    <!-- Panel de controles ubicado ordenadamente DEBAJO de la foto -->
-    <div style="background:#F6F0E6; border:1px solid #E5D5C0; padding:12px 14px; border-radius:8px; margin-top:12px; display:flex; flex-direction:column; gap:10px; font-size:0.8rem; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:left;">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:600; color:#3A271D;">Tamaño de peluca:</span>
-        <input type="range" id="sliderScale" min="80" max="400" value="${wigScale}" style="width:58%; accent-color:#B86E36;">
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:600; color:#3A271D;">Subir / Bajar:</span>
-        <input type="range" id="sliderTop" min="-50" max="60" value="${wigTop}" style="width:58%; accent-color:#B86E36;">
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:600; color:#3A271D;">Mover izquierda / derecha:</span>
-        <input type="range" id="sliderLeft" min="10" max="90" value="${wigLeft}" style="width:58%; accent-color:#B86E36;">
-      </div>
+    <div style="position:relative; width:100%; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <img id="previewImg" src="${src}" alt="Fotografía del cliente" style="width:100%; height:auto; display:block; object-fit:contain;">
     </div>
   `;
-
-  // Controladores interactivos en tiempo real
-  const sliderScale = document.getElementById("sliderScale");
-  const sliderTop = document.getElementById("sliderTop");
-  const sliderLeft = document.getElementById("sliderLeft");
-  const wigEl = document.getElementById("wigOverlay");
-
-  sliderScale.addEventListener("input", (e) => {
-    wigScale = e.target.value;
-    wigEl.style.width = `${wigScale}%`;
-  });
-
-  sliderTop.addEventListener("input", (e) => {
-    wigTop = e.target.value;
-    wigEl.style.top = `${wigTop}%`;
-  });
-
-  sliderLeft.addEventListener("input", (e) => {
-    wigLeft = e.target.value;
-    wigEl.style.left = `${wigLeft}%`;
-  });
 }
 
 function procesarImagen(imgEl) {
@@ -109,7 +50,7 @@ function procesarImagen(imgEl) {
   
   fotoOriginalSrc = c.toDataURL("image/jpeg", 0.9);
   fotoBase64 = fotoOriginalSrc.split(",")[1];
-  renderizarVistaInteractiva();
+  mostrarImagen(fotoOriginalSrc);
 }
 
 // 1. Activar Cámara
@@ -151,7 +92,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Usa los controles inferiores para acomodar el corte a tu cabeza y presiona 'Simular'.";
+    note.textContent = "Foto lista. Selecciona un corte y color a evaluar, luego presiona 'Simular'.";
   });
 }
 
@@ -163,7 +104,7 @@ if (fileInput) {
     const img = new Image();
     img.onload = () => procesarImagen(img);
     img.src = URL.createObjectURL(f);
-    note.textContent = "Foto cargada. Ajusta el corte con los controles y presiona 'Simular'.";
+    note.textContent = "Foto cargada. Elige tus opciones y presiona 'Simular'.";
   });
 }
 
@@ -181,28 +122,27 @@ document.querySelectorAll(".style-chip").forEach((s) => {
     document.querySelectorAll(".style-chip").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     estiloSeleccionado = s.dataset.style || s.textContent.trim();
-    if (fotoOriginalSrc) renderizarVistaInteractiva();
   });
 });
 
-// 5. Diagnóstico Morfológico con IA (Gemini)
+// 5. Diagnóstico Morfológico y Visagismo con Gemini Pro
 async function consultarAsesorEstilista(detalles) {
-  const prompt = `Eres el Director Creativo y Estilista Máster del salón de belleza capilar "Peines y Tijeras".
-Evalúa con rigor profesional la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
-El cliente está probando este look: ${detalles}.
+  const promptMaestro = `Eres el Director Creativo y Máster Estilista del salón capilar "Peines y Tijeras".
+Analiza con rigor de visagismo la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
+El cliente desea evaluar la siguiente propuesta de look: ${detalles}.
 
 Redacta un diagnóstico técnico y personalizado en exactamente 4 puntos concisos:
-1. ANÁLISIS MORFOLÓGICO: Identifica el tipo de rostro del cliente y explica por qué la estructura de este corte equilibra sus facciones.
-2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel y la iluminación de su rostro.
-3. ADAPTACIÓN TÉCNICA EN SALÓN: Qué técnica personalizada de corte o degradado (fade, texturizado, capas) se aplicará para integrarlo a su caída natural.
-4. PLAN DE ACCIÓN: Una recomendación puntual para preparar el cabello antes de su cita en "Peines y Tijeras".
+1. ANÁLISIS MORFOLÓGICO: Identifica la tipología de rostro del cliente y explica cómo este estilo equilibra sus facciones.
+2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel y la iluminación que aportará al rostro.
+3. ADAPTACIÓN TÉCNICA EN SALÓN: Qué técnica personalizada de corte o degradado (fade, texturizado, desfilado o capas) se aplicará para integrarlo a su caída natural.
+4. RECOMENDACIÓN PREVIA: Consejo práctico de cuidado capilar para llegar preparado a su cita en "Peines y Tijeras".
 
-Sé directo, sumamente profesional y certero. Sin saludos largos ni texto de relleno.`;
+Sé sumamente profesional, certero y empático. No uses saludos largos ni texto de relleno.`;
 
   const payload = {
     contents: [{
       parts: [
-        { text: prompt },
+        { text: promptMaestro },
         { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
       ]
     }]
@@ -213,6 +153,8 @@ Sé directo, sumamente profesional y certero. Sin saludos largos ni texto de rel
     "x-goog-api-key": GEMINI_API_KEY.trim()
   };
 
+  let ultimoError = null;
+
   for (const modelo of MODELOS_EN_CASCADA) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
@@ -221,16 +163,20 @@ Sé directo, sumamente profesional y certero. Sin saludos largos ni texto de rel
         headers: headers,
         body: JSON.stringify(payload)
       });
+
       const data = await response.json();
+
       if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
       }
+
+      ultimoError = data?.error?.message || `Error HTTP ${response.status}`;
     } catch (err) {
-      console.warn(`Error en ${modelo}:`, err);
+      ultimoError = err.message;
     }
   }
 
-  throw new Error("No se pudo obtener el diagnóstico en este momento.");
+  throw new Error(ultimoError || "Modelos de IA ocupados temporalmente.");
 }
 
 // 6. Botón Simular
@@ -240,6 +186,10 @@ if (btnSim) {
       note.textContent = "Primero debes tomarte una foto o subir una imagen.";
       return;
     }
+    if (!colorSeleccionado && !estiloSeleccionado) {
+      note.textContent = "Selecciona al menos un color o un corte a evaluar.";
+      return;
+    }
 
     const elecciones = [];
     if (estiloSeleccionado) elecciones.push(`Corte: ${estiloSeleccionado}`);
@@ -247,17 +197,17 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Generando diagnóstico morfológico profesional con Gemini…</em>";
+    note.innerHTML = "<em>Analizando morfología facial y colorimetría con Gemini…</em>";
 
     try {
       const diagnostico = await consultarAsesorEstilista(detalleTexto);
 
       note.innerHTML = `
-        <div style="line-height:1.6; text-align:left;">
-          <strong>Diagnóstico Máster Estilista (${detalleTexto}):</strong><br>
-          ${diagnostico.replace(/\n/g, "<br>")}
-          <div style="margin-top:14px; text-align:center;">
-            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
+        <div style="line-height:1.6; text-align:left; background:#fff; padding:16px; border-radius:8px; border-left:4px solid #B86E36; margin-top:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+          <h4 style="margin:0 0 10px 0; color:#3A271D; font-size:1rem;">Diagnóstico Máster Estilista (${detalleTexto}):</h4>
+          <div style="color:#4A3B32; font-size:0.88rem;">${diagnostico.replace(/\n/g, "<br>")}</div>
+          <div style="margin-top:16px; text-align:center;">
+            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 20px; display:inline-block; border-radius:6px; text-decoration:none;">
               Agendar cita con este estilo →
             </a>
           </div>
