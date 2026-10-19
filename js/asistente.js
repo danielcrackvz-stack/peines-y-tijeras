@@ -1,10 +1,9 @@
 // ==========================================================================
 // Asistente de IA — Peines y Tijeras
-// Motor con tolerancia a fallos: Pro -> Flash -> Flash-Lite
+// Probador Virtual de Cortes + Gemini Diagnóstico
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-// Lista ordenada por prioridad analítica
 const MODELOS_EN_CASCADA = [
   "gemini-3.1-pro-preview",
   "gemini-3.8-flash",
@@ -22,8 +21,8 @@ let stream = null;
 let fotoBase64 = null;
 let fotoOriginalSrc = null;
 let colorSeleccionado = null;
-let estiloSeleccionado = null;
-let hexColorSeleccionado = null;
+let estiloSeleccionado = "Undercut";
+let hexColorSeleccionado = "#DFCE9A";
 
 const MAPA_COLORES = {
   "Castaño oscuro": "#1C140E",
@@ -34,13 +33,14 @@ const MAPA_COLORES = {
   "Vino tinto": "#4F1424"
 };
 
+// Rutas relativas compatibles con la raíz de GitHub Pages
 const PELUCAS_LOCALES = {
-  "Bob clásico": "assets/cortes/bob_clasico.png",
-  "Capas largas": "assets/cortes/capas_largas.png",
-  "Pixie": "assets/cortes/pixie.png",
-  "Flequillo": "assets/cortes/flequillo.png",
-  "Midi wavy": "assets/cortes/midi_wavy.png",
-  "Undercut": "assets/cortes/undercut.png"
+  "Bob clásico": "./assets/cortes/bob_clasico.png",
+  "Capas largas": "./assets/cortes/capas_largas.png",
+  "Pixie": "./assets/cortes/pixie.png",
+  "Flequillo": "./assets/cortes/flequillo.png",
+  "Midi wavy": "./assets/cortes/midi_wavy.png",
+  "Undercut": "./assets/cortes/undercut.png"
 };
 
 function mostrarImagen(src) {
@@ -82,7 +82,7 @@ if (btnCam) {
       v.style.objectFit = "cover";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara lista. Colócate de frente y presiona 'Tomar foto'.";
+      note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
       note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
@@ -132,9 +132,9 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Motor de Montaje y Tintado de Peluca
+// 5. Motor de Montaje de Peluca con verificación de carga
 function montarPelucaLocal(estilo, colorHex) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const imgBase = new Image();
     imgBase.onload = () => {
       const canvas = document.createElement("canvas");
@@ -142,13 +142,10 @@ function montarPelucaLocal(estilo, colorHex) {
       canvas.height = imgBase.height;
       const ctx = canvas.getContext("2d");
 
+      // Dibujar foto original
       ctx.drawImage(imgBase, 0, 0);
 
-      const rutaPeluca = PELUCAS_LOCALES[estilo];
-      if (!rutaPeluca) {
-        resolve(fotoOriginalSrc);
-        return;
-      }
+      const rutaPeluca = PELUCAS_LOCALES[estilo] || PELUCAS_LOCALES["Undercut"];
 
       const imgPeluca = new Image();
       imgPeluca.onload = () => {
@@ -159,6 +156,7 @@ function montarPelucaLocal(estilo, colorHex) {
 
         ctxP.drawImage(imgPeluca, 0, 0);
 
+        // Teñir textura de la peluca si seleccionó color
         if (colorHex) {
           ctxP.save();
           ctxP.globalCompositeOperation = "color";
@@ -168,39 +166,51 @@ function montarPelucaLocal(estilo, colorHex) {
           ctxP.restore();
         }
 
-        const anchoPelo = canvas.width * 0.94;
+        // Posicionar sobre la cabeza (área frontal superior)
+        const anchoPelo = canvas.width * 0.95;
         const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
         const posX = (canvas.width - anchoPelo) / 2;
-        const posY = canvas.height * 0.02;
+        // Ajuste vertical para que calce en la frente
+        const posY = canvas.height * 0.05;
 
         ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
 
+        // Etiqueta informativa
         ctx.fillStyle = "rgba(23, 16, 13, 0.82)";
         ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
         ctx.fillStyle = "#FAF6F0";
         ctx.font = "bold 13px sans-serif";
-        ctx.fillText(`Corte: ${estilo || "Actual"} • Tono: ${colorSeleccionado || "Base"}`, 16, canvas.height - 14);
+        ctx.fillText(`Look: ${estilo} • Tono: ${colorSeleccionado || "Elegido"}`, 16, canvas.height - 14);
 
         resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
 
       imgPeluca.onerror = () => {
-        resolve(fotoOriginalSrc);
+        console.error(`Error al cargar archivo de imagen: ${rutaPeluca}`);
+        // Si no se encuentra el archivo local, creamos un banner visual de aviso
+        ctx.fillStyle = "rgba(180, 50, 50, 0.85)";
+        ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillText(`No se encontró el archivo: ${rutaPeluca}`, 16, canvas.height - 35);
+        ctx.fillText("Verifica que exista en la carpeta assets/cortes/ en GitHub", 16, canvas.height - 15);
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
+
       imgPeluca.src = rutaPeluca;
     };
     imgBase.src = fotoOriginalSrc;
   });
 }
 
-// 6. Diagnóstico morfológico con respaldo automático ante saturación
+// 6. Diagnóstico morfológico con tolerancia a fallos
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
 Analiza detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
-El cliente desea realizarse: ${detalles}.
+El cliente desea realizarse este look: ${detalles}.
 Entrega un diagnóstico en español en 4 líneas breves y profesionales:
-1. Explica si este estilo y color armonizan con su morfología y facciones particulares.
-2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
+1. Explica si este estilo y color armonizan con su estructura facial y tono de piel.
+2. Da una recomendación técnica concreta para el momento del servicio en el salón.
 Sé empática, directa y no incluyas saludos largos.`;
 
   const payload = {
@@ -219,7 +229,6 @@ Sé empática, directa y no incluyas saludos largos.`;
 
   let ultimoError = null;
 
-  // Recorrer los modelos en cascada si uno presenta alta demanda o error
   for (const modelo of MODELOS_EN_CASCADA) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
@@ -235,17 +244,13 @@ Sé empática, directa y no incluyas saludos largos.`;
         return data.candidates[0].content.parts[0].text;
       }
 
-      // Si el error indica alta demanda o saturación, registrar y probar el siguiente modelo
-      const mensajeError = data?.error?.message || `Error HTTP ${response.status}`;
-      console.warn(`Modelo ${modelo} no disponible (${mensajeError}). Probando alternativa...`);
-      ultimoError = mensajeError;
+      ultimoError = data?.error?.message || `Error HTTP ${response.status}`;
     } catch (err) {
-      console.warn(`Fallo de conexión con ${modelo}:`, err);
       ultimoError = err.message;
     }
   }
 
-  throw new Error(ultimoError || "Todos los modelos de IA están ocupados temporalmente. Reintenta en unos instantes.");
+  throw new Error(ultimoError || "Modelos de IA ocupados temporalmente.");
 }
 
 // 7. Botón Simular
@@ -266,7 +271,7 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Procesando look y analizando morfología facial con Gemini…</em>";
+    note.innerHTML = "<em>Procesando look y analizando morfología con Gemini…</em>";
 
     try {
       const [fotoResultado, diagnostico] = await Promise.all([
