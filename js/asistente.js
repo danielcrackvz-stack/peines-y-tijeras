@@ -1,5 +1,5 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Ajuste Visual Libre + Gemini Pro)
+// Asistente de IA — Peines y Tijeras (Ajuste Libre Calibrado + Gemini Pro)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
@@ -22,7 +22,7 @@ let fotoOriginalSrc = null;
 let estiloSeleccionado = "Undercut";
 let colorSeleccionado = "Cobrizo";
 
-// Rutas locales directas a los PNG transparentes
+// Rutas locales a los archivos PNG transparentes
 const PELUCAS_LOCALES = {
   "Bob clásico": "./assets/cortes/bob_clasico.png",
   "Capas largas": "./assets/cortes/capas_largas.png",
@@ -32,38 +32,48 @@ const PELUCAS_LOCALES = {
   "Undercut": "./assets/cortes/undercut.png"
 };
 
-// Variables calibradas con amplio rango de manipulación
-let wigTop = -5;     // Altura (%)
-let wigLeft = 50;   // Centrado horizontal (%)
-let wigScale = 145; // Tamaño ampliado para cubrir cabeza y sienes (%)
+// Valores iniciales calibrados para calzar naturalmente sobre la cabeza
+let wigTop = -12;     // Altura (%)
+let wigLeft = 50;     // Centrado horizontal (%)
+let wigScale = 180;   // Tamaño inicial amplio (%)
 
 function renderizarVistaInteractiva() {
   if (!fotoOriginalSrc) return;
 
   const rutaPeluca = PELUCAS_LOCALES[estiloSeleccionado] || PELUCAS_LOCALES["Undercut"];
 
+  // Limpiar estilos forzados del contenedor exterior para evitar franjas negras
+  if (preview) {
+    preview.style.background = "transparent";
+    preview.style.height = "auto";
+    preview.style.overflow = "visible";
+  }
+
   preview.innerHTML = `
-    <div id="canvasWrapper" style="position:relative; width:100%; border-radius:8px; overflow:hidden; background:transparent;">
-      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:auto; display:block; object-fit:cover;">
-      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:${wigLeft}%; top:${wigTop}%; width:${wigScale}%; transform:translate(-50%, -20%); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
+    <!-- Contenedor de la foto y peluca -->
+    <div id="canvasWrapper" style="position:relative; width:100%; border-radius:8px; overflow:hidden; background:transparent; line-height:0;">
+      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:auto; display:block; margin:0 auto; object-fit:contain;">
+      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:${wigLeft}%; top:${wigTop}%; width:${wigScale}%; transform:translate(-50%, 0); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
     </div>
-    <div style="background:#f4ece1; padding:10px 14px; border-radius:8px; margin-top:10px; display:flex; flex-direction:column; gap:8px; font-size:0.8rem; box-shadow:0 2px 5px rgba(0,0,0,0.06);">
+
+    <!-- Panel de controles ubicado ordenadamente DEBAJO de la foto -->
+    <div style="background:#F6F0E6; border:1px solid #E5D5C0; padding:12px 14px; border-radius:8px; margin-top:12px; display:flex; flex-direction:column; gap:10px; font-size:0.8rem; box-shadow:0 2px 6px rgba(0,0,0,0.05); text-align:left;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><strong>Tamaño (ancho):</strong></span>
-        <input type="range" id="sliderScale" min="70" max="250" value="${wigScale}" style="width:60%;">
+        <span style="font-weight:600; color:#3A271D;">Tamaño de peluca:</span>
+        <input type="range" id="sliderScale" min="80" max="400" value="${wigScale}" style="width:58%; accent-color:#B86E36;">
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><strong>Subir / Bajar:</strong></span>
-        <input type="range" id="sliderTop" min="-40" max="60" value="${wigTop}" style="width:60%;">
+        <span style="font-weight:600; color:#3A271D;">Subir / Bajar:</span>
+        <input type="range" id="sliderTop" min="-50" max="60" value="${wigTop}" style="width:58%; accent-color:#B86E36;">
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><strong>Mover lateral:</strong></span>
-        <input type="range" id="sliderLeft" min="20" max="80" value="${wigLeft}" style="width:60%;">
+        <span style="font-weight:600; color:#3A271D;">Mover izquierda / derecha:</span>
+        <input type="range" id="sliderLeft" min="10" max="90" value="${wigLeft}" style="width:58%; accent-color:#B86E36;">
       </div>
     </div>
   `;
 
-  // Controles en tiempo real
+  // Controladores interactivos en tiempo real
   const sliderScale = document.getElementById("sliderScale");
   const sliderTop = document.getElementById("sliderTop");
   const sliderLeft = document.getElementById("sliderLeft");
@@ -110,6 +120,10 @@ if (btnCam) {
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } 
       });
       preview.innerHTML = "";
+      if (preview) {
+        preview.style.background = "transparent";
+        preview.style.height = "auto";
+      }
       const v = document.createElement("video");
       v.autoplay = true;
       v.playsInline = true;
@@ -118,6 +132,7 @@ if (btnCam) {
       v.style.width = "100%";
       v.style.height = "auto";
       v.style.display = "block";
+      v.style.borderRadius = "8px";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
       note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
@@ -136,7 +151,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Usa los deslizadores inferiores para ajustar el corte a tu cabeza y presiona 'Simular'.";
+    note.textContent = "Foto lista. Usa los controles inferiores para acomodar el corte a tu cabeza y presiona 'Simular'.";
   });
 }
 
@@ -148,7 +163,7 @@ if (fileInput) {
     const img = new Image();
     img.onload = () => procesarImagen(img);
     img.src = URL.createObjectURL(f);
-    note.textContent = "Foto cargada. Ajusta el corte con los deslizadores y presiona 'Simular'.";
+    note.textContent = "Foto cargada. Ajusta el corte con los controles y presiona 'Simular'.";
   });
 }
 
@@ -170,17 +185,19 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Diagnóstico Morfológico con IA
+// 5. Diagnóstico Morfológico con IA (Gemini)
 async function consultarAsesorEstilista(detalles) {
-  const prompt = `Actúa como Director y Estilista Máster del salón "Peines y Tijeras".
-Evalúa la fotografía adjunta (forma del rostro, proporciones, facciones y tono de piel).
+  const prompt = `Eres el Director Creativo y Estilista Máster del salón de belleza capilar "Peines y Tijeras".
+Evalúa con rigor profesional la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
 El cliente está probando este look: ${detalles}.
-Redacta un diagnóstico técnico y profesional en 4 puntos breves:
-1. Análisis morfológico facial: si el estilo favorece su estructura y por qué.
-2. Colorimetría: armonía del tono con su piel.
-3. Sugerencia técnica para el corte en el salón (textura, volumen o caída).
-4. Preparación previa para su cita.
-Sé directo, elegante y sin textos de relleno.`;
+
+Redacta un diagnóstico técnico y personalizado en exactamente 4 puntos concisos:
+1. ANÁLISIS MORFOLÓGICO: Identifica el tipo de rostro del cliente y explica por qué la estructura de este corte equilibra sus facciones.
+2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel y la iluminación de su rostro.
+3. ADAPTACIÓN TÉCNICA EN SALÓN: Qué técnica personalizada de corte o degradado (fade, texturizado, capas) se aplicará para integrarlo a su caída natural.
+4. PLAN DE ACCIÓN: Una recomendación puntual para preparar el cabello antes de su cita en "Peines y Tijeras".
+
+Sé directo, sumamente profesional y certero. Sin saludos largos ni texto de relleno.`;
 
   const payload = {
     contents: [{
