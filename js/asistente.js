@@ -1,5 +1,5 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Ajuste Interactivo en Vivo + Gemini Pro)
+// Asistente de IA — Peines y Tijeras (Ajuste Visual Libre + Gemini Pro)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
@@ -32,9 +32,10 @@ const PELUCAS_LOCALES = {
   "Undercut": "./assets/cortes/undercut.png"
 };
 
-// Variables para manipulación de la peluca
-let wigTop = -10; // Posición vertical (%)
-let wigScale = 90; // Tamaño (%)
+// Variables calibradas con amplio rango de manipulación
+let wigTop = -5;     // Altura (%)
+let wigLeft = 50;   // Centrado horizontal (%)
+let wigScale = 145; // Tamaño ampliado para cubrir cabeza y sienes (%)
 
 function renderizarVistaInteractiva() {
   if (!fotoOriginalSrc) return;
@@ -42,35 +43,45 @@ function renderizarVistaInteractiva() {
   const rutaPeluca = PELUCAS_LOCALES[estiloSeleccionado] || PELUCAS_LOCALES["Undercut"];
 
   preview.innerHTML = `
-    <div id="canvasWrapper" style="position:relative; width:100%; height:100%; overflow:hidden; border-radius:4px; touch-action:none; background:#000;">
-      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:100%; object-fit:cover; display:block;">
-      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:50%; top:${wigTop}%; width:${wigScale}%; transform:translateX(-50%); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+    <div id="canvasWrapper" style="position:relative; width:100%; border-radius:8px; overflow:hidden; background:transparent;">
+      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:auto; display:block; object-fit:cover;">
+      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:${wigLeft}%; top:${wigTop}%; width:${wigScale}%; transform:translate(-50%, -20%); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
     </div>
-    <div style="background:#f4ece1; padding:8px 12px; border-radius:6px; margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:0.75rem;">
+    <div style="background:#f4ece1; padding:10px 14px; border-radius:8px; margin-top:10px; display:flex; flex-direction:column; gap:8px; font-size:0.8rem; box-shadow:0 2px 5px rgba(0,0,0,0.06);">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><strong>Ajustar altura:</strong></span>
-        <input type="range" id="sliderTop" min="-30" max="40" value="${wigTop}" style="width:65%;">
+        <span><strong>Tamaño (ancho):</strong></span>
+        <input type="range" id="sliderScale" min="70" max="250" value="${wigScale}" style="width:60%;">
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span><strong>Ajustar tamaño:</strong></span>
-        <input type="range" id="sliderScale" min="50" max="140" value="${wigScale}" style="width:65%;">
+        <span><strong>Subir / Bajar:</strong></span>
+        <input type="range" id="sliderTop" min="-40" max="60" value="${wigTop}" style="width:60%;">
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span><strong>Mover lateral:</strong></span>
+        <input type="range" id="sliderLeft" min="20" max="80" value="${wigLeft}" style="width:60%;">
       </div>
     </div>
   `;
 
-  // Controladores en tiempo real
-  const sliderTop = document.getElementById("sliderTop");
+  // Controles en tiempo real
   const sliderScale = document.getElementById("sliderScale");
+  const sliderTop = document.getElementById("sliderTop");
+  const sliderLeft = document.getElementById("sliderLeft");
   const wigEl = document.getElementById("wigOverlay");
+
+  sliderScale.addEventListener("input", (e) => {
+    wigScale = e.target.value;
+    wigEl.style.width = `${wigScale}%`;
+  });
 
   sliderTop.addEventListener("input", (e) => {
     wigTop = e.target.value;
     wigEl.style.top = `${wigTop}%`;
   });
 
-  sliderScale.addEventListener("input", (e) => {
-    wigScale = e.target.value;
-    wigEl.style.width = `${wigScale}%`;
+  sliderLeft.addEventListener("input", (e) => {
+    wigLeft = e.target.value;
+    wigEl.style.left = `${wigLeft}%`;
   });
 }
 
@@ -105,14 +116,14 @@ if (btnCam) {
       v.muted = true;
       v.srcObject = stream;
       v.style.width = "100%";
-      v.style.height = "100%";
-      v.style.objectFit = "cover";
+      v.style.height = "auto";
+      v.style.display = "block";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
       note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Sube una foto desde tu galería.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
     }
   });
 }
@@ -125,7 +136,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Puedes cambiar de corte o deslizar los controles para acomodarlo a tu cabeza.";
+    note.textContent = "Foto lista. Usa los deslizadores inferiores para ajustar el corte a tu cabeza y presiona 'Simular'.";
   });
 }
 
@@ -137,7 +148,7 @@ if (fileInput) {
     const img = new Image();
     img.onload = () => procesarImagen(img);
     img.src = URL.createObjectURL(f);
-    note.textContent = "Foto cargada. Ajusta el corte o presiona 'Simular'.";
+    note.textContent = "Foto cargada. Ajusta el corte con los deslizadores y presiona 'Simular'.";
   });
 }
 
