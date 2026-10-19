@@ -9,7 +9,7 @@ export const SERVICIOS_CAPILARES = [
     categoria: "Corte",
     precio: "Bs. 35 - 50",
     descripcion: "Corte geométrico a la altura del mentón que estiliza el cuello y realza facciones con precisión.",
-    imagen: "assets/peines1.jpg"
+    imagen: "assets/peines1.jpeg"
   },
   {
     id: "capas-largas",
@@ -17,7 +17,7 @@ export const SERVICIOS_CAPILARES = [
     categoria: "Corte",
     precio: "Bs. 40 - 60",
     descripcion: "Aporta movimiento, ligereza y volumen natural en cabellos medios y largos sin sacrificar el largo.",
-    imagen: "assets/peines2.jpg"
+    imagen: "assets/peines2.jpeg"
   },
   {
     id: "color-cobrizo",
@@ -25,7 +25,7 @@ export const SERVICIOS_CAPILARES = [
     categoria: "Color",
     precio: "Bs. 120 - 220",
     descripcion: "Aplicación de matices cálidos dimensionales (canela, ámbar o cobre) con nutrición capilar.",
-    imagen: "assets/peines3.jpg"
+    imagen: "assets/peines3.jpeg"
   },
   {
     id: "alizado-keratina",
@@ -33,7 +33,7 @@ export const SERVICIOS_CAPILARES = [
     categoria: "Alizado",
     precio: "Bs. 150 - 280",
     descripcion: "Tratamiento reconstructivo profundo para eliminar el frizz, aportar sedosidad y brillo duradero.",
-    imagen: "assets/peines4.jpg"
+    imagen: "assets/peines4.jpeg"
   },
   {
     id: "visagismo-personalizado",
@@ -41,7 +41,7 @@ export const SERVICIOS_CAPILARES = [
     categoria: "Cambio de look",
     precio: "Bs. 50 - 80",
     descripcion: "Diagnóstico completo de estructura facial, proporciones óseas y tono de piel para definir tu look ideal.",
-    imagen: "assets/peines5.jpg"
+    imagen: "assets/peines5.jpeg"
   }
 ];
 

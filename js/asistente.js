@@ -1,7 +1,6 @@
 // ==========================================================================
 // Asistente de IA — Peines y Tijeras
-// Módulo: Asesor de Visagismo y Diagnóstico Morfológico Capilar con IA
-// Motor: Gemini 3.1 Pro Preview (con tolerancia a fallos)
+// Visagismo y Diagnóstico Morfológico Capilar Femenino
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
@@ -21,7 +20,7 @@ const note = document.getElementById("resultNote");
 let stream = null;
 let fotoBase64 = null;
 let fotoOriginalSrc = null;
-let estiloSeleccionado = "Undercut";
+let estiloSeleccionado = "Bob clásico";
 let colorSeleccionado = "Cobrizo";
 
 function mostrarImagen(src) {
@@ -30,8 +29,8 @@ function mostrarImagen(src) {
     preview.style.height = "auto";
   }
   preview.innerHTML = `
-    <div style="position:relative; width:100%; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-      <img id="previewImg" src="${src}" alt="Fotografía del cliente" style="width:100%; height:auto; display:block; object-fit:contain;">
+    <div style="position:relative; width:100%; border-radius:10px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.08);">
+      <img id="previewImg" src="${src}" alt="Fotografía de la clienta" style="width:100%; height:auto; display:block; object-fit:contain;">
     </div>
   `;
 }
@@ -76,7 +75,7 @@ if (btnCam) {
       v.style.borderRadius = "8px";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
+      note.textContent = "Cámara lista. Ubícate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
       note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
@@ -92,7 +91,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Selecciona un corte y color a evaluar, luego presiona 'Simular'.";
+    note.textContent = "Foto lista. Selecciona el estilo y color a consultar, luego presiona 'Simular'.";
   });
 }
 
@@ -125,19 +124,19 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Diagnóstico Morfológico y Visagismo con Gemini Pro
+// 5. Diagnóstico Morfológico Femenino con Gemini
 async function consultarAsesorEstilista(detalles) {
-  const promptMaestro = `Eres el Director Creativo y Máster Estilista del salón capilar "Peines y Tijeras".
-Analiza con rigor de visagismo la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
-El cliente desea evaluar la siguiente propuesta de look: ${detalles}.
+  const promptMaestro = `Eres la Directora Creativa y Máster Estilista del salón de belleza capilar "Peines y Tijeras", especializado exclusivamente en atención femenina.
+Analiza con rigor de visagismo la fotografía adjunta (evalúa contorno facial, proporciones óseas de pómulos, mandíbula, frente y subtono de piel).
+La clienta desea consultar la viabilidad de este look: ${detalles}.
 
-Redacta un diagnóstico técnico y personalizado en exactamente 4 puntos concisos:
-1. ANÁLISIS MORFOLÓGICO: Identifica la tipología de rostro del cliente y explica cómo este estilo equilibra sus facciones.
-2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel y la iluminación que aportará al rostro.
-3. ADAPTACIÓN TÉCNICA EN SALÓN: Qué técnica personalizada de corte o degradado (fade, texturizado, desfilado o capas) se aplicará para integrarlo a su caída natural.
-4. RECOMENDACIÓN PREVIA: Consejo práctico de cuidado capilar para llegar preparado a su cita en "Peines y Tijeras".
+Redacta un diagnóstico técnico y profesional estructurado en exactamente 4 puntos:
+1. ANÁLISIS MORFOLÓGICO: Identifica el tipo de rostro de la clienta (ovalado, redondo, cuadrado, alargado o corazón) y explica cómo la geometría de este corte equilibra sus facciones.
+2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel (cálido, frío o neutro) y la iluminación que aportará al rostro.
+3. ADAPTACIÓN TÉCNICA EN SALÓN: Qué técnica personalizada de corte o desfilado (texturizado, degrafilado, capas suaves o flequillo) se aplicará en el salón.
+4. PLAN DE CUIDADO PREVIO: Recomendación práctica para que la clienta prepare su fibra capilar antes del servicio en "Peines y Tijeras".
 
-Sé sumamente profesional, certero y empático. No uses saludos largos ni texto de relleno.`;
+Sé empática, certera, elegante y directa. No uses saludos largos ni textos de relleno.`;
 
   const payload = {
     contents: [{
@@ -203,11 +202,11 @@ if (btnSim) {
       const diagnostico = await consultarAsesorEstilista(detalleTexto);
 
       note.innerHTML = `
-        <div style="line-height:1.6; text-align:left; background:#fff; padding:16px; border-radius:8px; border-left:4px solid #B86E36; margin-top:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-          <h4 style="margin:0 0 10px 0; color:#3A271D; font-size:1rem;">Diagnóstico Máster Estilista (${detalleTexto}):</h4>
-          <div style="color:#4A3B32; font-size:0.88rem;">${diagnostico.replace(/\n/g, "<br>")}</div>
-          <div style="margin-top:16px; text-align:center;">
-            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 20px; display:inline-block; border-radius:6px; text-decoration:none;">
+        <div style="line-height:1.6; text-align:left; background:#fff; padding:18px; border-radius:8px; border-left:4px solid #B86E36; margin-top:14px; box-shadow:0 3px 10px rgba(0,0,0,0.05);">
+          <h4 style="margin:0 0 10px 0; color:#1E1815; font-size:1rem;">Diagnóstico Máster Estilista (${detalleTexto}):</h4>
+          <div style="color:#5A4B42; font-size:0.9rem;">${diagnostico.replace(/\n/g, "<br>")}</div>
+          <div style="margin-top:18px; text-align:center;">
+            <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.88rem; padding:11px 22px; display:inline-block; border-radius:6px; text-decoration:none;">
               Agendar cita con este estilo →
             </a>
           </div>
