@@ -1,9 +1,10 @@
 // ==========================================================================
 // Asistente de IA — Peines y Tijeras
-// Probador Virtual de Cortes + Gemini Diagnóstico
+// Probador Virtual con Assets PNG Transparentes + Gemini 3.1 Pro Preview
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
+// Cascada de modelos ante alta demanda: Pro -> Flash -> Flash-Lite
 const MODELOS_EN_CASCADA = [
   "gemini-3.1-pro-preview",
   "gemini-3.8-flash",
@@ -22,8 +23,9 @@ let fotoBase64 = null;
 let fotoOriginalSrc = null;
 let colorSeleccionado = null;
 let estiloSeleccionado = "Undercut";
-let hexColorSeleccionado = "#DFCE9A";
+let hexColorSeleccionado = null;
 
+// Tonos capilares del salón
 const MAPA_COLORES = {
   "Castaño oscuro": "#1C140E",
   "Castaño chocolate": "#4A2711",
@@ -33,7 +35,7 @@ const MAPA_COLORES = {
   "Vino tinto": "#4F1424"
 };
 
-// Rutas relativas compatibles con la raíz de GitHub Pages
+// Rutas locales directas a los archivos .png transparentes
 const PELUCAS_LOCALES = {
   "Bob clásico": "./assets/cortes/bob_clasico.png",
   "Capas largas": "./assets/cortes/capas_largas.png",
@@ -132,9 +134,9 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Motor de Montaje de Peluca con verificación de carga
+// 5. Montaje directo de peluca PNG transparente con tinte capilar
 function montarPelucaLocal(estilo, colorHex) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const imgBase = new Image();
     imgBase.onload = () => {
       const canvas = document.createElement("canvas");
@@ -142,58 +144,51 @@ function montarPelucaLocal(estilo, colorHex) {
       canvas.height = imgBase.height;
       const ctx = canvas.getContext("2d");
 
-      // Dibujar foto original
+      // 1. Dibujar foto original intacta
       ctx.drawImage(imgBase, 0, 0);
 
       const rutaPeluca = PELUCAS_LOCALES[estilo] || PELUCAS_LOCALES["Undercut"];
-
       const imgPeluca = new Image();
+
       imgPeluca.onload = () => {
+        // Lienzo auxiliar para preparar la peluca PNG
         const cP = document.createElement("canvas");
         cP.width = imgPeluca.width;
         cP.height = imgPeluca.height;
         const ctxP = cP.getContext("2d");
 
+        // Dibujar el peinado original PNG
         ctxP.drawImage(imgPeluca, 0, 0);
 
-        // Teñir textura de la peluca si seleccionó color
+        // Teñir únicamente los píxeles del pelo conservando la transparencia
         if (colorHex) {
           ctxP.save();
-          ctxP.globalCompositeOperation = "color";
+          ctxP.globalCompositeOperation = "source-in";
           ctxP.fillStyle = colorHex;
           ctxP.globalAlpha = 0.85;
           ctxP.fillRect(0, 0, cP.width, cP.height);
           ctxP.restore();
         }
 
-        // Posicionar sobre la cabeza (área frontal superior)
-        const anchoPelo = canvas.width * 0.95;
+        // Posicionamiento anatómico sobre la cabeza
+        const anchoPelo = canvas.width * 1.05;
         const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
         const posX = (canvas.width - anchoPelo) / 2;
-        // Ajuste vertical para que calce en la frente
-        const posY = canvas.height * 0.05;
+        const posY = canvas.height * 0.12;
 
         ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
-
-        // Etiqueta informativa
-        ctx.fillStyle = "rgba(23, 16, 13, 0.82)";
-        ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
-        ctx.fillStyle = "#FAF6F0";
-        ctx.font = "bold 13px sans-serif";
-        ctx.fillText(`Look: ${estilo} • Tono: ${colorSeleccionado || "Elegido"}`, 16, canvas.height - 14);
 
         resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
 
       imgPeluca.onerror = () => {
-        console.error(`Error al cargar archivo de imagen: ${rutaPeluca}`);
-        // Si no se encuentra el archivo local, creamos un banner visual de aviso
+        console.warn(`No se encontró el archivo PNG: ${rutaPeluca}`);
+        // Aviso visual en pantalla si no encuentra el archivo PNG
         ctx.fillStyle = "rgba(180, 50, 50, 0.85)";
-        ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+        ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "bold 13px sans-serif";
-        ctx.fillText(`No se encontró el archivo: ${rutaPeluca}`, 16, canvas.height - 35);
-        ctx.fillText("Verifica que exista en la carpeta assets/cortes/ en GitHub", 16, canvas.height - 15);
+        ctx.fillText(`No se encontró: ${rutaPeluca}`, 16, canvas.height - 15);
         resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
 
