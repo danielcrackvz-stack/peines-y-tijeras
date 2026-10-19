@@ -1,11 +1,15 @@
 // ==========================================================================
 // Asistente de IA — Peines y Tijeras
-// Motor: Gemini 3.1 Pro Preview + Probador Virtual Local (Assets PNG)
+// Motor con tolerancia a fallos: Pro -> Flash -> Flash-Lite
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-// Modelo avanzado de razonamiento morfológico
-const MODELO_GEMINI = "gemini-3.1-pro-preview";
+// Lista ordenada por prioridad analítica
+const MODELOS_EN_CASCADA = [
+  "gemini-3.1-pro-preview",
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite"
+];
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -21,7 +25,6 @@ let colorSeleccionado = null;
 let estiloSeleccionado = null;
 let hexColorSeleccionado = null;
 
-// Mapa de colores con mezclas tonales del salón
 const MAPA_COLORES = {
   "Castaño oscuro": "#1C140E",
   "Castaño chocolate": "#4A2711",
@@ -31,7 +34,6 @@ const MAPA_COLORES = {
   "Vino tinto": "#4F1424"
 };
 
-// Rutas a la biblioteca local de cortes transparentes
 const PELUCAS_LOCALES = {
   "Bob clásico": "assets/cortes/bob_clasico.png",
   "Capas largas": "assets/cortes/capas_largas.png",
@@ -80,7 +82,7 @@ if (btnCam) {
       v.style.objectFit = "cover";
       preview.appendChild(v);
       if (btnCap) btnCap.disabled = false;
-      note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
+      note.textContent = "Cámara lista. Colócate de frente y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
       note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
@@ -130,7 +132,7 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Motor de Montaje y Tintado de Peluca sobre el Rostro
+// 5. Motor de Montaje y Tintado de Peluca
 function montarPelucaLocal(estilo, colorHex) {
   return new Promise((resolve) => {
     const imgBase = new Image();
@@ -140,7 +142,6 @@ function montarPelucaLocal(estilo, colorHex) {
       canvas.height = imgBase.height;
       const ctx = canvas.getContext("2d");
 
-      // 1. Dibujar rostro original
       ctx.drawImage(imgBase, 0, 0);
 
       const rutaPeluca = PELUCAS_LOCALES[estilo];
@@ -151,7 +152,6 @@ function montarPelucaLocal(estilo, colorHex) {
 
       const imgPeluca = new Image();
       imgPeluca.onload = () => {
-        // Lienzo temporal para teñir la peluca respetando sombras
         const cP = document.createElement("canvas");
         cP.width = imgPeluca.width;
         cP.height = imgPeluca.height;
@@ -168,7 +168,6 @@ function montarPelucaLocal(estilo, colorHex) {
           ctxP.restore();
         }
 
-        // Posicionar corte en la parte superior del cráneo
         const anchoPelo = canvas.width * 0.94;
         const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
         const posX = (canvas.width - anchoPelo) / 2;
@@ -176,7 +175,6 @@ function montarPelucaLocal(estilo, colorHex) {
 
         ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
 
-        // Marca de agua informativa
         ctx.fillStyle = "rgba(23, 16, 13, 0.82)";
         ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
         ctx.fillStyle = "#FAF6F0";
@@ -187,7 +185,6 @@ function montarPelucaLocal(estilo, colorHex) {
       };
 
       imgPeluca.onerror = () => {
-        console.warn(`No se encontró el activo ${rutaPeluca}. Asegúrate de ubicarlo en la carpeta.`);
         resolve(fotoOriginalSrc);
       };
       imgPeluca.src = rutaPeluca;
@@ -196,11 +193,11 @@ function montarPelucaLocal(estilo, colorHex) {
   });
 }
 
-// 6. Diagnóstico morfológico con Gemini 3.1 Pro Preview
+// 6. Diagnóstico morfológico con respaldo automático ante saturación
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Analiza detalladamente la fotografía adjunta (evalúa la forma del rostro, simetría, facciones y tonalidad de piel).
-El cliente desea este cambio de estilo: ${detalles}.
+Analiza detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
+El cliente desea realizarse: ${detalles}.
 Entrega un diagnóstico en español en 4 líneas breves y profesionales:
 1. Explica si este estilo y color armonizan con su morfología y facciones particulares.
 2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
@@ -215,18 +212,40 @@ Sé empática, directa y no incluyas saludos largos.`;
     }]
   };
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY.trim()
-    },
-    body: JSON.stringify(payload)
-  });
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": GEMINI_API_KEY.trim()
+  };
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || `Error HTTP ${response.status}`);
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta del modelo.";
+  let ultimoError = null;
+
+  // Recorrer los modelos en cascada si uno presenta alta demanda o error
+  for (const modelo of MODELOS_EN_CASCADA) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        return data.candidates[0].content.parts[0].text;
+      }
+
+      // Si el error indica alta demanda o saturación, registrar y probar el siguiente modelo
+      const mensajeError = data?.error?.message || `Error HTTP ${response.status}`;
+      console.warn(`Modelo ${modelo} no disponible (${mensajeError}). Probando alternativa...`);
+      ultimoError = mensajeError;
+    } catch (err) {
+      console.warn(`Fallo de conexión con ${modelo}:`, err);
+      ultimoError = err.message;
+    }
+  }
+
+  throw new Error(ultimoError || "Todos los modelos de IA están ocupados temporalmente. Reintenta en unos instantes.");
 }
 
 // 7. Botón Simular
@@ -247,7 +266,7 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Procesando look y analizando morfología con Gemini 3.1 Pro…</em>";
+    note.innerHTML = "<em>Procesando look y analizando morfología facial con Gemini…</em>";
 
     try {
       const [fotoResultado, diagnostico] = await Promise.all([
