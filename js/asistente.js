@@ -1,9 +1,11 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras (Virtual Hair Try-On + Gemini 3.8 Flash)
+// Asistente de IA — Peines y Tijeras
+// Motor: Gemini 3.1 Pro Preview + Probador Virtual Local (Assets PNG)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-const MODELO_GEMINI = "gemini-3.8-flash";
+// Modelo avanzado de razonamiento morfológico
+const MODELO_GEMINI = "gemini-3.1-pro-preview";
 
 const preview = document.getElementById("capturePreview");
 const btnCam = document.getElementById("btnStartCamera");
@@ -16,27 +18,27 @@ let stream = null;
 let fotoBase64 = null;
 let fotoOriginalSrc = null;
 let colorSeleccionado = null;
-let estiloSeleccionado = "Bob clásico";
-let hexColorSeleccionado = "#B85324";
+let estiloSeleccionado = null;
+let hexColorSeleccionado = null;
 
-// Mapa de colores con mezclas profesionales
+// Mapa de colores con mezclas tonales del salón
 const MAPA_COLORES = {
-  "Castaño oscuro": "#1F140E",
-  "Castaño chocolate": "#4A2613",
-  "Cobrizo": "#A84B1E",
-  "Rubio miel": "#C4984F",
-  "Rubio platinado": "#DED0A6",
-  "Vino tinto": "#4D1422"
+  "Castaño oscuro": "#1C140E",
+  "Castaño chocolate": "#4A2711",
+  "Cobrizo": "#A44A1B",
+  "Rubio miel": "#C59B4B",
+  "Rubio platinado": "#DFCE9A",
+  "Vino tinto": "#4F1424"
 };
 
-// Catálogo de cortes con texturas capilares realistas transparentes (PNG)
-const PELUCAS_ESTILOS = {
-  "Bob clásico": "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=600&q=80",
-  "Capas largas": "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=600&q=80",
-  "Pixie": "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80",
-  "Flequillo": "https://images.unsplash.com/photo-1560869713-7d0a29430803?auto=format&fit=crop&w=600&q=80",
-  "Midi wavy": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80",
-  "Undercut": "https://images.unsplash.com/photo-1605497788044-5a32c7078486?auto=format&fit=crop&w=600&q=80"
+// Rutas a la biblioteca local de cortes transparentes
+const PELUCAS_LOCALES = {
+  "Bob clásico": "assets/cortes/bob_clasico.png",
+  "Capas largas": "assets/cortes/capas_largas.png",
+  "Pixie": "assets/cortes/pixie.png",
+  "Flequillo": "assets/cortes/flequillo.png",
+  "Midi wavy": "assets/cortes/midi_wavy.png",
+  "Undercut": "assets/cortes/undercut.png"
 };
 
 function mostrarImagen(src) {
@@ -81,7 +83,7 @@ if (btnCam) {
       note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto.";
+      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
     }
   });
 }
@@ -94,7 +96,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto capturada. Elige el estilo de corte y tono, luego presiona 'Simular'.";
+    note.textContent = "Foto lista. Selecciona un corte y color, luego presiona 'Simular'.";
   });
 }
 
@@ -116,7 +118,7 @@ document.querySelectorAll(".swatch").forEach((s) => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     colorSeleccionado = s.dataset.color || s.getAttribute("title");
-    hexColorSeleccionado = MAPA_COLORES[colorSeleccionado] || "#A84B1E";
+    hexColorSeleccionado = MAPA_COLORES[colorSeleccionado] || null;
   });
 });
 
@@ -128,81 +130,80 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Ajuste del peinado con adaptación anatómica y tinte cromático
-function montarPeinadoSobreFoto(colorHex, estilo) {
+// 5. Motor de Montaje y Tintado de Peluca sobre el Rostro
+function montarPelucaLocal(estilo, colorHex) {
   return new Promise((resolve) => {
-    const imgRostro = new Image();
-    imgRostro.onload = () => {
+    const imgBase = new Image();
+    imgBase.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = imgRostro.width;
-      canvas.height = imgRostro.height;
+      canvas.width = imgBase.width;
+      canvas.height = imgBase.height;
       const ctx = canvas.getContext("2d");
 
-      // 1. Dibujar tu rostro original sin alteraciones
-      ctx.drawImage(imgRostro, 0, 0);
+      // 1. Dibujar rostro original
+      ctx.drawImage(imgBase, 0, 0);
 
-      // Cargar la textura del corte capilar correspondiente
-      const urlTextura = PELUCAS_ESTILOS[estilo] || PELUCAS_ESTILOS["Bob clásico"];
-      const imgCorte = new Image();
-      imgCorte.crossOrigin = "anonymous";
-      imgCorte.onload = () => {
-        // Lienzo temporal para teñir el cabello antes de montarlo
-        const cPelo = document.createElement("canvas");
-        cPelo.width = imgCorte.width;
-        cPelo.height = imgCorte.height;
-        const ctxPelo = cPelo.getContext("2d");
+      const rutaPeluca = PELUCAS_LOCALES[estilo];
+      if (!rutaPeluca) {
+        resolve(fotoOriginalSrc);
+        return;
+      }
 
-        ctxPelo.drawImage(imgCorte, 0, 0);
+      const imgPeluca = new Image();
+      imgPeluca.onload = () => {
+        // Lienzo temporal para teñir la peluca respetando sombras
+        const cP = document.createElement("canvas");
+        cP.width = imgPeluca.width;
+        cP.height = imgPeluca.height;
+        const ctxP = cP.getContext("2d");
 
-        // Teñir únicamente la peluca con el color seleccionado
+        ctxP.drawImage(imgPeluca, 0, 0);
+
         if (colorHex) {
-          ctxPelo.save();
-          ctxPelo.globalCompositeOperation = "color";
-          ctxPelo.fillStyle = colorHex;
-          ctxPelo.globalAlpha = 0.85;
-          ctxPelo.fillRect(0, 0, cPelo.width, cPelo.height);
-          ctxPelo.restore();
+          ctxP.save();
+          ctxP.globalCompositeOperation = "color";
+          ctxP.fillStyle = colorHex;
+          ctxP.globalAlpha = 0.85;
+          ctxP.fillRect(0, 0, cP.width, cP.height);
+          ctxP.restore();
         }
 
-        // 2. Colocar la cabellera calzada sobre la parte superior del cráneo
-        const anchoPelo = canvas.width * 0.92;
-        const altoPelo = canvas.height * 0.58;
+        // Posicionar corte en la parte superior del cráneo
+        const anchoPelo = canvas.width * 0.94;
+        const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
         const posX = (canvas.width - anchoPelo) / 2;
-        const posY = canvas.height * 0.04; // Asentado justo en el borde de la frente
+        const posY = canvas.height * 0.02;
 
-        ctx.save();
-        // Mezcla suave para fusionar los bordes con el fondo
-        ctx.globalAlpha = 0.92;
-        ctx.drawImage(cPelo, posX, posY, anchoPelo, altoPelo);
-        ctx.restore();
+        ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
 
-        // Banner informativo del look
+        // Marca de agua informativa
         ctx.fillStyle = "rgba(23, 16, 13, 0.82)";
         ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
         ctx.fillStyle = "#FAF6F0";
         ctx.font = "bold 13px sans-serif";
-        ctx.fillText(`Corte: ${estilo} • Tono: ${colorSeleccionado || "Original"}`, 16, canvas.height - 14);
+        ctx.fillText(`Corte: ${estilo || "Actual"} • Tono: ${colorSeleccionado || "Base"}`, 16, canvas.height - 14);
 
         resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
-      imgCorte.onerror = () => {
-        // Si la textura remota no carga por conexión, devuelve la foto original
+
+      imgPeluca.onerror = () => {
+        console.warn(`No se encontró el activo ${rutaPeluca}. Asegúrate de ubicarlo en la carpeta.`);
         resolve(fotoOriginalSrc);
       };
-      imgCorte.src = urlTextura;
+      imgPeluca.src = rutaPeluca;
     };
-    imgRostro.src = fotoOriginalSrc;
+    imgBase.src = fotoOriginalSrc;
   });
 }
 
-// 6. Diagnóstico morfológico real con Gemini 3.8 Flash
+// 6. Diagnóstico morfológico con Gemini 3.1 Pro Preview
 async function consultarAsesorEstilista(detalles) {
   const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Observa detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
-El cliente desea realizarse este cambio de look: ${detalles}.
+Analiza detalladamente la fotografía adjunta (evalúa la forma del rostro, simetría, facciones y tonalidad de piel).
+El cliente desea este cambio de estilo: ${detalles}.
 Entrega un diagnóstico en español en 4 líneas breves y profesionales:
-1. Explica si este estilo y color armonizan con la estructura de sus rasgos y por qué.
-2. Da una recomendación técnica concreta para el momento del servicio en el salón.
+1. Explica si este estilo y color armonizan con su morfología y facciones particulares.
+2. Da una recomendación técnica concreta para el momento en que se atienda en el salón.
 Sé empática, directa y no incluyas saludos largos.`;
 
   const payload = {
@@ -246,11 +247,11 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Montando corte y analizando morfología facial con Gemini 3.8…</em>";
+    note.innerHTML = "<em>Procesando look y analizando morfología con Gemini 3.1 Pro…</em>";
 
     try {
       const [fotoResultado, diagnostico] = await Promise.all([
-        montarPeinadoSobreFoto(hexColorSeleccionado, estiloSeleccionado),
+        montarPelucaLocal(estiloSeleccionado, hexColorSeleccionado),
         consultarAsesorEstilista(detalleTexto)
       ]);
 
@@ -258,7 +259,7 @@ if (btnSim) {
 
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Simulación Aplicada (${detalleTexto}):</strong><br>
+          <strong>Diagnóstico Morfológico (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
