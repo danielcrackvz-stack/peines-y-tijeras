@@ -1,10 +1,9 @@
 // ==========================================================================
 // Asistente de IA — Peines y Tijeras
-// Probador Virtual con Assets PNG Transparentes + Gemini 3.1 Pro Preview
+// Probador Virtual Fotográfico Realista + Gemini 3.1 Pro Master Prompt
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
-// Cascada de modelos ante alta demanda: Pro -> Flash -> Flash-Lite
 const MODELOS_EN_CASCADA = [
   "gemini-3.1-pro-preview",
   "gemini-3.8-flash",
@@ -25,17 +24,16 @@ let colorSeleccionado = null;
 let estiloSeleccionado = "Undercut";
 let hexColorSeleccionado = null;
 
-// Tonos capilares del salón
 const MAPA_COLORES = {
-  "Castaño oscuro": "#1C140E",
-  "Castaño chocolate": "#4A2711",
-  "Cobrizo": "#A44A1B",
-  "Rubio miel": "#C59B4B",
-  "Rubio platinado": "#DFCE9A",
-  "Vino tinto": "#4F1424"
+  "Castaño oscuro": "#24160E",
+  "Castaño chocolate": "#532D15",
+  "Cobrizo": "#B35422",
+  "Rubio miel": "#CBA457",
+  "Rubio platinado": "#E2D3A5",
+  "Vino tinto": "#5A1728"
 };
 
-// Rutas locales directas a los archivos .png transparentes
+// Rutas locales de los assets PNG transparentes
 const PELUCAS_LOCALES = {
   "Bob clásico": "./assets/cortes/bob_clasico.png",
   "Capas largas": "./assets/cortes/capas_largas.png",
@@ -134,7 +132,7 @@ document.querySelectorAll(".style-chip").forEach((s) => {
   });
 });
 
-// 5. Montaje directo de peluca PNG transparente con tinte capilar
+// 5. Montaje de Peluca PNG con Textura Fotográfica y Calce Anatómico
 function montarPelucaLocal(estilo, colorHex) {
   return new Promise((resolve) => {
     const imgBase = new Image();
@@ -144,37 +142,53 @@ function montarPelucaLocal(estilo, colorHex) {
       canvas.height = imgBase.height;
       const ctx = canvas.getContext("2d");
 
-      // 1. Dibujar foto original intacta
+      // 1. Dibujar fotografía base original
       ctx.drawImage(imgBase, 0, 0);
 
       const rutaPeluca = PELUCAS_LOCALES[estilo] || PELUCAS_LOCALES["Undercut"];
       const imgPeluca = new Image();
 
       imgPeluca.onload = () => {
-        // Lienzo auxiliar para preparar la peluca PNG
+        // Lienzo auxiliar para teñir la peluca preservando hebras y sombras
         const cP = document.createElement("canvas");
         cP.width = imgPeluca.width;
         cP.height = imgPeluca.height;
         const ctxP = cP.getContext("2d");
 
-        // Dibujar el peinado original PNG
+        // Dibujar el asset PNG con su textura capilar original
         ctxP.drawImage(imgPeluca, 0, 0);
 
-        // Teñir únicamente los píxeles del pelo conservando la transparencia
         if (colorHex) {
+          // Capa de colorimetría: tintado cromático manteniendo textura
           ctxP.save();
-          ctxP.globalCompositeOperation = "source-in";
+          ctxP.globalCompositeOperation = "color";
           ctxP.fillStyle = colorHex;
           ctxP.globalAlpha = 0.85;
           ctxP.fillRect(0, 0, cP.width, cP.height);
           ctxP.restore();
+
+          // Resalte de volumen y brillo
+          ctxP.save();
+          ctxP.globalCompositeOperation = "soft-light";
+          ctxP.fillStyle = colorHex;
+          ctxP.globalAlpha = 0.50;
+          ctxP.fillRect(0, 0, cP.width, cP.height);
+          ctxP.restore();
+
+          // Asegurar que las zonas transparentes sigan perfectamente limpias
+          ctxP.save();
+          ctxP.globalCompositeOperation = "destination-in";
+          ctxP.drawImage(imgPeluca, 0, 0);
+          ctxP.restore();
         }
 
-        // Posicionamiento anatómico sobre la cabeza
-        const anchoPelo = canvas.width * 1.05;
+        // Posicionamiento anatómico calibrado:
+        // Ancho al 92% para ajustarse al cráneo sin salirse
+        const anchoPelo = canvas.width * 0.92;
         const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
         const posX = (canvas.width - anchoPelo) / 2;
-        const posY = canvas.height * 0.12;
+        // Asentado al 3% de la altura total: queda justo sobre el nacimiento del cabello y despeja la frente y cejas
+        const posY = canvas.height * 0.03;
 
         ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
 
@@ -182,14 +196,8 @@ function montarPelucaLocal(estilo, colorHex) {
       };
 
       imgPeluca.onerror = () => {
-        console.warn(`No se encontró el archivo PNG: ${rutaPeluca}`);
-        // Aviso visual en pantalla si no encuentra el archivo PNG
-        ctx.fillStyle = "rgba(180, 50, 50, 0.85)";
-        ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "bold 13px sans-serif";
-        ctx.fillText(`No se encontró: ${rutaPeluca}`, 16, canvas.height - 15);
-        resolve(canvas.toDataURL("image/jpeg", 0.92));
+        console.warn(`No se encontró el activo ${rutaPeluca}`);
+        resolve(fotoOriginalSrc);
       };
 
       imgPeluca.src = rutaPeluca;
@@ -198,20 +206,24 @@ function montarPelucaLocal(estilo, colorHex) {
   });
 }
 
-// 6. Diagnóstico morfológico con tolerancia a fallos
+// 6. Diagnóstico morfológico con Prompt Maestro de Estilismo
 async function consultarAsesorEstilista(detalles) {
-  const prompt = `Actúa como estilista profesional del salón de belleza capilar "Peines y Tijeras".
-Analiza detalladamente la fotografía adjunta (evalúa morfología del rostro, facciones y tono de piel).
-El cliente desea realizarse este look: ${detalles}.
-Entrega un diagnóstico en español en 4 líneas breves y profesionales:
-1. Explica si este estilo y color armonizan con su estructura facial y tono de piel.
-2. Da una recomendación técnica concreta para el momento del servicio en el salón.
-Sé empática, directa y no incluyas saludos largos.`;
+  const promptMaestro = `Eres el Director Creativo y Máster Estilista del salón capilar "Peines y Tijeras".
+Analiza con rigor morfológico la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
+El cliente desea visualizarse con la siguiente propuesta de look: ${detalles}.
+
+Redacta un diagnóstico técnico y personalizado en exactamente 4 puntos concisos:
+1. ANÁLISIS MORFOLÓGICO: Identifica el tipo de rostro del cliente y explica por qué la estructura de este corte equilibra o desfavorece sus facciones.
+2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel (cálido/frío/neutro) y su impacto en la iluminación del rostro.
+3. ADAPTACIÓN TÉCNICA EN SALÓN: Indica qué técnica personalizada de corte o degradado (texturizado, fade, desfilado o capas) se aplicará para que se integre a su caída natural.
+4. PLAN DE ACCIÓN: Una recomendación puntual para la preparación del cabello previa a la cita en "Peines y Tijeras".
+
+Sé sumamente profesional, certero y directo. No uses saludos largos ni texto de relleno.`;
 
   const payload = {
     contents: [{
       parts: [
-        { text: prompt },
+        { text: promptMaestro },
         { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
       ]
     }]
@@ -266,7 +278,7 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Procesando look y analizando morfología con Gemini…</em>";
+    note.innerHTML = "<em>Renderizando cabello con textura real y analizando morfología con IA…</em>";
 
     try {
       const [fotoResultado, diagnostico] = await Promise.all([
@@ -278,7 +290,7 @@ if (btnSim) {
 
       note.innerHTML = `
         <div style="line-height:1.6;">
-          <strong>Diagnóstico Morfológico (${detalleTexto}):</strong><br>
+          <strong>Diagnóstico Máster Estilista (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
           <div style="margin-top:14px;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
