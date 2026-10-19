@@ -1,6 +1,5 @@
 // ==========================================================================
-// Asistente de IA — Peines y Tijeras
-// Probador Virtual Fotográfico Realista + Gemini 3.1 Pro Master Prompt
+// Asistente de IA — Peines y Tijeras (Ajuste Interactivo en Vivo + Gemini Pro)
 // ==========================================================================
 import { GEMINI_API_KEY } from "./config.js";
 
@@ -20,20 +19,10 @@ const note = document.getElementById("resultNote");
 let stream = null;
 let fotoBase64 = null;
 let fotoOriginalSrc = null;
-let colorSeleccionado = null;
 let estiloSeleccionado = "Undercut";
-let hexColorSeleccionado = null;
+let colorSeleccionado = "Cobrizo";
 
-const MAPA_COLORES = {
-  "Castaño oscuro": "#24160E",
-  "Castaño chocolate": "#532D15",
-  "Cobrizo": "#B35422",
-  "Rubio miel": "#CBA457",
-  "Rubio platinado": "#E2D3A5",
-  "Vino tinto": "#5A1728"
-};
-
-// Rutas locales de los assets PNG transparentes
+// Rutas locales directas a los PNG transparentes
 const PELUCAS_LOCALES = {
   "Bob clásico": "./assets/cortes/bob_clasico.png",
   "Capas largas": "./assets/cortes/capas_largas.png",
@@ -43,8 +32,46 @@ const PELUCAS_LOCALES = {
   "Undercut": "./assets/cortes/undercut.png"
 };
 
-function mostrarImagen(src) {
-  preview.innerHTML = `<img id="previewImg" src="${src}" alt="Tu simulación" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
+// Variables para manipulación de la peluca
+let wigTop = -10; // Posición vertical (%)
+let wigScale = 90; // Tamaño (%)
+
+function renderizarVistaInteractiva() {
+  if (!fotoOriginalSrc) return;
+
+  const rutaPeluca = PELUCAS_LOCALES[estiloSeleccionado] || PELUCAS_LOCALES["Undercut"];
+
+  preview.innerHTML = `
+    <div id="canvasWrapper" style="position:relative; width:100%; height:100%; overflow:hidden; border-radius:4px; touch-action:none; background:#000;">
+      <img id="baseImg" src="${fotoOriginalSrc}" style="width:100%; height:100%; object-fit:cover; display:block;">
+      <img id="wigOverlay" src="${rutaPeluca}" alt="Corte" style="position:absolute; left:50%; top:${wigTop}%; width:${wigScale}%; transform:translateX(-50%); pointer-events:none; z-index:10; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3));">
+    </div>
+    <div style="background:#f4ece1; padding:8px 12px; border-radius:6px; margin-top:8px; display:flex; flex-direction:column; gap:6px; font-size:0.75rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span><strong>Ajustar altura:</strong></span>
+        <input type="range" id="sliderTop" min="-30" max="40" value="${wigTop}" style="width:65%;">
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span><strong>Ajustar tamaño:</strong></span>
+        <input type="range" id="sliderScale" min="50" max="140" value="${wigScale}" style="width:65%;">
+      </div>
+    </div>
+  `;
+
+  // Controladores en tiempo real
+  const sliderTop = document.getElementById("sliderTop");
+  const sliderScale = document.getElementById("sliderScale");
+  const wigEl = document.getElementById("wigOverlay");
+
+  sliderTop.addEventListener("input", (e) => {
+    wigTop = e.target.value;
+    wigEl.style.top = `${wigTop}%`;
+  });
+
+  sliderScale.addEventListener("input", (e) => {
+    wigScale = e.target.value;
+    wigEl.style.width = `${wigScale}%`;
+  });
 }
 
 function procesarImagen(imgEl) {
@@ -61,7 +88,7 @@ function procesarImagen(imgEl) {
   
   fotoOriginalSrc = c.toDataURL("image/jpeg", 0.9);
   fotoBase64 = fotoOriginalSrc.split(",")[1];
-  mostrarImagen(fotoOriginalSrc);
+  renderizarVistaInteractiva();
 }
 
 // 1. Activar Cámara
@@ -85,7 +112,7 @@ if (btnCam) {
       note.textContent = "Cámara lista. Ubícate al centro y presiona 'Tomar foto'.";
     } catch (err) {
       console.error(err);
-      note.textContent = "No se pudo acceder a la cámara. Concede los permisos o sube una foto desde tu galería.";
+      note.textContent = "No se pudo acceder a la cámara. Sube una foto desde tu galería.";
     }
   });
 }
@@ -98,7 +125,7 @@ if (btnCap) {
     procesarImagen(v);
     if (stream) stream.getTracks().forEach((track) => track.stop());
     btnCap.disabled = true;
-    note.textContent = "Foto lista. Selecciona un corte y color, luego presiona 'Simular'.";
+    note.textContent = "Foto lista. Puedes cambiar de corte o deslizar los controles para acomodarlo a tu cabeza.";
   });
 }
 
@@ -110,7 +137,7 @@ if (fileInput) {
     const img = new Image();
     img.onload = () => procesarImagen(img);
     img.src = URL.createObjectURL(f);
-    note.textContent = "Foto cargada. Elige tus opciones y presiona 'Simular'.";
+    note.textContent = "Foto cargada. Ajusta el corte o presiona 'Simular'.";
   });
 }
 
@@ -120,7 +147,6 @@ document.querySelectorAll(".swatch").forEach((s) => {
     document.querySelectorAll(".swatch").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     colorSeleccionado = s.dataset.color || s.getAttribute("title");
-    hexColorSeleccionado = MAPA_COLORES[colorSeleccionado] || null;
   });
 });
 
@@ -129,101 +155,26 @@ document.querySelectorAll(".style-chip").forEach((s) => {
     document.querySelectorAll(".style-chip").forEach((x) => x.classList.remove("selected"));
     s.classList.add("selected");
     estiloSeleccionado = s.dataset.style || s.textContent.trim();
+    if (fotoOriginalSrc) renderizarVistaInteractiva();
   });
 });
 
-// 5. Montaje de Peluca PNG con Textura Fotográfica y Calce Anatómico
-function montarPelucaLocal(estilo, colorHex) {
-  return new Promise((resolve) => {
-    const imgBase = new Image();
-    imgBase.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = imgBase.width;
-      canvas.height = imgBase.height;
-      const ctx = canvas.getContext("2d");
-
-      // 1. Dibujar fotografía base original
-      ctx.drawImage(imgBase, 0, 0);
-
-      const rutaPeluca = PELUCAS_LOCALES[estilo] || PELUCAS_LOCALES["Undercut"];
-      const imgPeluca = new Image();
-
-      imgPeluca.onload = () => {
-        // Lienzo auxiliar para teñir la peluca preservando hebras y sombras
-        const cP = document.createElement("canvas");
-        cP.width = imgPeluca.width;
-        cP.height = imgPeluca.height;
-        const ctxP = cP.getContext("2d");
-
-        // Dibujar el asset PNG con su textura capilar original
-        ctxP.drawImage(imgPeluca, 0, 0);
-
-        if (colorHex) {
-          // Capa de colorimetría: tintado cromático manteniendo textura
-          ctxP.save();
-          ctxP.globalCompositeOperation = "color";
-          ctxP.fillStyle = colorHex;
-          ctxP.globalAlpha = 0.85;
-          ctxP.fillRect(0, 0, cP.width, cP.height);
-          ctxP.restore();
-
-          // Resalte de volumen y brillo
-          ctxP.save();
-          ctxP.globalCompositeOperation = "soft-light";
-          ctxP.fillStyle = colorHex;
-          ctxP.globalAlpha = 0.50;
-          ctxP.fillRect(0, 0, cP.width, cP.height);
-          ctxP.restore();
-
-          // Asegurar que las zonas transparentes sigan perfectamente limpias
-          ctxP.save();
-          ctxP.globalCompositeOperation = "destination-in";
-          ctxP.drawImage(imgPeluca, 0, 0);
-          ctxP.restore();
-        }
-
-        // Posicionamiento anatómico calibrado:
-        // Ancho al 92% para ajustarse al cráneo sin salirse
-        const anchoPelo = canvas.width * 0.92;
-        const altoPelo = (imgPeluca.height / imgPeluca.width) * anchoPelo;
-        const posX = (canvas.width - anchoPelo) / 2;
-        // Asentado al 3% de la altura total: queda justo sobre el nacimiento del cabello y despeja la frente y cejas
-        const posY = canvas.height * 0.03;
-
-        ctx.drawImage(cP, posX, posY, anchoPelo, altoPelo);
-
-        resolve(canvas.toDataURL("image/jpeg", 0.92));
-      };
-
-      imgPeluca.onerror = () => {
-        console.warn(`No se encontró el activo ${rutaPeluca}`);
-        resolve(fotoOriginalSrc);
-      };
-
-      imgPeluca.src = rutaPeluca;
-    };
-    imgBase.src = fotoOriginalSrc;
-  });
-}
-
-// 6. Diagnóstico morfológico con Prompt Maestro de Estilismo
+// 5. Diagnóstico Morfológico con IA
 async function consultarAsesorEstilista(detalles) {
-  const promptMaestro = `Eres el Director Creativo y Máster Estilista del salón capilar "Peines y Tijeras".
-Analiza con rigor morfológico la fotografía adjunta (evalúa contorno facial, proporciones óseas, línea de mandíbula, frente y subtono de piel).
-El cliente desea visualizarse con la siguiente propuesta de look: ${detalles}.
-
-Redacta un diagnóstico técnico y personalizado en exactamente 4 puntos concisos:
-1. ANÁLISIS MORFOLÓGICO: Identifica el tipo de rostro del cliente y explica por qué la estructura de este corte equilibra o desfavorece sus facciones.
-2. COLORIMETRÍA CAPILAR: Evalúa el contraste del tono seleccionado frente a su subtono de piel (cálido/frío/neutro) y su impacto en la iluminación del rostro.
-3. ADAPTACIÓN TÉCNICA EN SALÓN: Indica qué técnica personalizada de corte o degradado (texturizado, fade, desfilado o capas) se aplicará para que se integre a su caída natural.
-4. PLAN DE ACCIÓN: Una recomendación puntual para la preparación del cabello previa a la cita en "Peines y Tijeras".
-
-Sé sumamente profesional, certero y directo. No uses saludos largos ni texto de relleno.`;
+  const prompt = `Actúa como Director y Estilista Máster del salón "Peines y Tijeras".
+Evalúa la fotografía adjunta (forma del rostro, proporciones, facciones y tono de piel).
+El cliente está probando este look: ${detalles}.
+Redacta un diagnóstico técnico y profesional en 4 puntos breves:
+1. Análisis morfológico facial: si el estilo favorece su estructura y por qué.
+2. Colorimetría: armonía del tono con su piel.
+3. Sugerencia técnica para el corte en el salón (textura, volumen o caída).
+4. Preparación previa para su cita.
+Sé directo, elegante y sin textos de relleno.`;
 
   const payload = {
     contents: [{
       parts: [
-        { text: promptMaestro },
+        { text: prompt },
         { inline_data: { mime_type: "image/jpeg", data: fotoBase64 } }
       ]
     }]
@@ -234,8 +185,6 @@ Sé sumamente profesional, certero y directo. No uses saludos largos ni texto de
     "x-goog-api-key": GEMINI_API_KEY.trim()
   };
 
-  let ultimoError = null;
-
   for (const modelo of MODELOS_EN_CASCADA) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
@@ -244,31 +193,23 @@ Sé sumamente profesional, certero y directo. No uses saludos largos ni texto de
         headers: headers,
         body: JSON.stringify(payload)
       });
-
       const data = await response.json();
-
       if (response.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
       }
-
-      ultimoError = data?.error?.message || `Error HTTP ${response.status}`;
     } catch (err) {
-      ultimoError = err.message;
+      console.warn(`Error en ${modelo}:`, err);
     }
   }
 
-  throw new Error(ultimoError || "Modelos de IA ocupados temporalmente.");
+  throw new Error("No se pudo obtener el diagnóstico en este momento.");
 }
 
-// 7. Botón Simular
+// 6. Botón Simular
 if (btnSim) {
   btnSim.addEventListener("click", async () => {
     if (!fotoBase64) {
       note.textContent = "Primero debes tomarte una foto o subir una imagen.";
-      return;
-    }
-    if (!colorSeleccionado && !estiloSeleccionado) {
-      note.textContent = "Selecciona al menos un color o un corte a evaluar.";
       return;
     }
 
@@ -278,21 +219,16 @@ if (btnSim) {
     const detalleTexto = elecciones.join(" y ");
 
     btnSim.disabled = true;
-    note.innerHTML = "<em>Renderizando cabello con textura real y analizando morfología con IA…</em>";
+    note.innerHTML = "<em>Generando diagnóstico morfológico profesional con Gemini…</em>";
 
     try {
-      const [fotoResultado, diagnostico] = await Promise.all([
-        montarPelucaLocal(estiloSeleccionado, hexColorSeleccionado),
-        consultarAsesorEstilista(detalleTexto)
-      ]);
-
-      mostrarImagen(fotoResultado);
+      const diagnostico = await consultarAsesorEstilista(detalleTexto);
 
       note.innerHTML = `
-        <div style="line-height:1.6;">
+        <div style="line-height:1.6; text-align:left;">
           <strong>Diagnóstico Máster Estilista (${detalleTexto}):</strong><br>
           ${diagnostico.replace(/\n/g, "<br>")}
-          <div style="margin-top:14px;">
+          <div style="margin-top:14px; text-align:center;">
             <a href="reservas.html?servicio=${encodeURIComponent(elecciones.join(' - '))}" class="btn btn-primary" style="font-size:0.85rem; padding:10px 18px; display:inline-block;">
               Agendar cita con este estilo →
             </a>
@@ -301,7 +237,7 @@ if (btnSim) {
       `;
     } catch (err) {
       console.error(err);
-      note.textContent = "Error en la simulación: " + err.message;
+      note.textContent = "Error al conectar con el asistente de IA: " + err.message;
     } finally {
       btnSim.disabled = false;
     }
